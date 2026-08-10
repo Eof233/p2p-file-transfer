@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-08-10
+
+### 🔧 Feature Completions
+
+#### Connection Request System
+- [x] Accept/Reject dialog for incoming connections
+- [x] Show requester's Peer ID and fingerprint
+- [x] Deferred data handlers until connection accepted
+- [x] i18n support for connection request text
+
+#### Screenshot Paste
+- [x] Paste images from clipboard (Ctrl+V)
+- [x] Auto-generate timestamped filename
+- [x] Visual feedback toast ("Image pasted")
+- [x] Tooltip hint on image button
+
+#### Key Verification
+- [x] Side-by-side fingerprint comparison dialog
+- [x] Verify/Mismatch status with visual indicators
+- [x] Shield icon in chat header for encryption status
+- [x] Green shield after successful verification
+- [x] Verification persists across session
+
+---
+
 ## [1.0.0] - 2026-08-10
 
 ### 🎉 Initial Release - Complete Rewrite
@@ -196,7 +221,7 @@ src/
 | **Connection** | Peer ID Generation | ✅ Done | Auto-generates on session start |
 | **Connection** | Manual ID Input | ✅ Done | Sidebar connect form |
 | **Connection** | Connection List | ✅ Done | Sidebar with active indicator |
-| **Connection** | Connection Request | ⚠️ Partial | Auto-accepts incoming |
+| **Connection** | Connection Request | ✅ Done | Accept/Reject dialog |
 | **Connection** | Auto-Reconnect | ❌ TODO | P1 priority |
 | **Connection** | Connection History | ❌ TODO | P2 priority |
 | **Messaging** | Real-time Chat | ✅ Done | Via PeerJS data channel |
@@ -217,11 +242,11 @@ src/
 | **Image** | Image Preview | ✅ Done | Click to expand |
 | **Image** | Image Compression | ✅ Done | Service implemented |
 | **Image** | Image Gallery | ❌ TODO | P2 priority |
-| **Image** | Screenshot Paste | ⚠️ Partial | Handler ready, needs testing |
+| **Image** | Screenshot Paste | ✅ Done | Ctrl+V paste with feedback |
 | **Security** | AES-256 Encryption | ✅ Done | AES-256-GCM |
 | **Security** | RSA Key Exchange | ✅ Done | RSA-2048 OAEP |
 | **Security** | Perfect Forward Secrecy | ❌ TODO | P1 priority |
-| **Security** | Key Verification | ⚠️ Partial | Fingerprint display |
+| **Security** | Key Verification | ✅ Done | Fingerprint comparison dialog |
 | **Security** | Encrypted Local Storage | ❌ TODO | P2 priority |
 | **UI** | Theme Switching | ✅ Done | Light/Dark/System |
 | **UI** | Language Switching | ✅ Done | Chinese/English |
@@ -240,14 +265,12 @@ src/
 
 ### Known Issues
 
-1. **Connection Request**: Currently auto-accepts incoming connections, needs accept/reject UI
-2. **Reconnection**: No automatic reconnection on network interruption
-3. **Large Files**: Chunked transfer implemented but resume capability missing
-4. **Testing**: No unit or integration tests yet
+1. **Reconnection**: No automatic reconnection on network interruption
+2. **Large Files**: Chunked transfer implemented but resume capability missing
+3. **Testing**: No unit or integration tests yet
 
 ### Next Steps (v1.1.0)
 
-- [ ] Add connection request accept/reject dialog
 - [ ] Implement auto-reconnect logic
 - [ ] Add drag & drop file upload
 - [ ] Write unit tests for crypto service

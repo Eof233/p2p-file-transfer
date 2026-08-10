@@ -14,6 +14,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     onSendMessage, onSendFile, onSendImage, onTyping, disabled
 }) => {
     const [message, setMessage] = useState('')
+    const [pasteFeedback, setPasteFeedback] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const imageInputRef = useRef<HTMLInputElement>(null)
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
@@ -53,6 +54,28 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         }
     }, [onSendFile, onSendImage])
 
+    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+        const items = e.clipboardData?.items
+        if (!items) return
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i]
+            if (item.type.startsWith('image/')) {
+                e.preventDefault()
+                const file = item.getAsFile()
+                if (file && onSendImage) {
+                    // Create a proper File with name
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+                    const imageFile = new File([file], `screenshot-${timestamp}.png`, { type: file.type })
+                    onSendImage(imageFile)
+                    setPasteFeedback(true)
+                    setTimeout(() => setPasteFeedback(false), 1500)
+                }
+                break
+            }
+        }
+    }, [onSendImage])
+
     return (
         <div className="flex items-end gap-2 p-4 bg-[var(--bg-primary)] border-t border-[var(--separator)]">
             <input
@@ -86,7 +109,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 size="sm"
                 onClick={() => imageInputRef.current?.click()}
                 disabled={disabled}
-                title={t.sendImage}
+                title={`${t.sendImage}\n${t.pasteImage}`}
             >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -100,12 +123,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     value={message}
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
                     placeholder={t.typeMessage}
                     disabled={disabled}
                     rows={1}
                     className="w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--separator)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none max-h-32"
                     style={{ minHeight: '40px' }}
                 />
+                {pasteFeedback && (
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-[var(--success)] text-white text-sm font-medium shadow-lg animate-fade-in-out whitespace-nowrap">
+                        {t.imagePasted}
+                    </div>
+                )}
             </div>
 
             <Button

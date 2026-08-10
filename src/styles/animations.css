@@ -242,6 +242,18 @@
     animation: spin 1s linear infinite;
 }
 
+/* Fade in and out (for paste feedback) */
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translate(-50%, 4px); }
+    15% { opacity: 1; transform: translate(-50%, 0); }
+    85% { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+
+.animate-fade-in-out {
+    animation: fadeInOut 1.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
     .animate-message-in,

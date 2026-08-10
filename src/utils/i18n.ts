@@ -24,6 +24,8 @@ export interface Translations {
     sendImage: string
     clearChat: string
     peerIsTyping: string
+    imagePasted: string
+    pasteImage: string
 
     // Settings
     appearance: string
@@ -58,6 +60,21 @@ export interface Translations {
     previewNotAvailable: string
     download: string
 
+    // Key Verification
+    verifyKeys: string
+    verifyKeysDesc: string
+    yourFingerprint: string
+    peerFingerprint: string
+    keysVerified: string
+    keysMismatch: string
+    close: string
+
+    // Connection Request
+    connectionRequest: string
+    connectionRequestDesc: string
+    connectionAccepted: string
+    connectionRejected: string
+
     // Common
     copied: string
     connectionClosed: string
@@ -90,6 +107,8 @@ const en: Translations = {
     sendImage: 'Send image',
     clearChat: 'Clear chat',
     peerIsTyping: 'is typing...',
+    imagePasted: 'Image pasted',
+    pasteImage: 'Paste image from clipboard (Ctrl+V)',
 
     appearance: 'Appearance',
     light: 'Light',
@@ -122,6 +141,19 @@ const en: Translations = {
     previewNotAvailable: 'Preview not available',
     download: 'Download',
 
+    verifyKeys: 'Verify Keys',
+    verifyKeysDesc: 'Compare these fingerprints with your peer to ensure secure connection',
+    yourFingerprint: 'Your Fingerprint',
+    peerFingerprint: 'Peer Fingerprint',
+    keysVerified: 'Keys verified - Connection is secure',
+    keysMismatch: 'Keys do not match - Connection may not be secure',
+    close: 'Close',
+
+    connectionRequest: 'Connection Request',
+    connectionRequestDesc: 'wants to connect with you',
+    connectionAccepted: 'Connection accepted',
+    connectionRejected: 'Connection rejected',
+
     copied: 'Copied',
     connectionClosed: 'Connection closed',
     incomingConnection: 'Incoming connection',
@@ -153,6 +185,8 @@ const zh: Translations = {
     sendImage: '发送图片',
     clearChat: '清空聊天',
     peerIsTyping: '正在输入...',
+    imagePasted: '图片已粘贴',
+    pasteImage: '从剪贴板粘贴图片 (Ctrl+V)',
 
     appearance: '外观',
     light: '浅色',
@@ -184,6 +218,19 @@ const zh: Translations = {
     largeFileWarning: '这是一个大文件，是否接受传输？',
     previewNotAvailable: '无法预览',
     download: '下载',
+
+    verifyKeys: '验证密钥',
+    verifyKeysDesc: '与对方比较这些指纹以确保安全连接',
+    yourFingerprint: '你的指纹',
+    peerFingerprint: '对方指纹',
+    keysVerified: '密钥已验证 - 连接安全',
+    keysMismatch: '密钥不匹配 - 连接可能不安全',
+    close: '关闭',
+
+    connectionRequest: '连接请求',
+    connectionRequestDesc: '想要与你建立连接',
+    connectionAccepted: '已接受连接',
+    connectionRejected: '已拒绝连接',
 
     copied: '已复制',
     connectionClosed: '连接已关闭',

@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { Header } from './components/Header'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { ChatView } from './components/chat/ChatView'
+import { ConnectionRequestDialog } from './components/connection/ConnectionRequestDialog'
 import { useAppSelector, useAppDispatch } from './store/hooks'
 import { startPeer, stopPeerSession } from './store/peer/peerActions'
 import * as connectionAction from './store/connection/connectionActions'
+import * as connectionRequestAction from './store/connection/connectionRequestActions'
 import { DataType, PeerConnection } from './helpers/peer'
 import { loadSettings } from './store/settings/settingsActions'
 import './styles/globals.css'
@@ -14,6 +16,11 @@ export const App: React.FC = () => {
     const dispatch = useAppDispatch()
     const peer = useAppSelector((state) => state.peer)
     const connection = useAppSelector((state) => state.connection)
+    const connectionRequests = useAppSelector((state) => state.connectionRequest.requests)
+
+    const pendingRequest = useMemo(() => {
+        return connectionRequests.find(r => r.status === 'pending') || null
+    }, [connectionRequests])
 
     // Load settings on mount
     useEffect(() => {
@@ -41,6 +48,14 @@ export const App: React.FC = () => {
         if (peer.id) {
             await navigator.clipboard.writeText(peer.id)
         }
+    }
+
+    const handleAcceptConnection = (peerId: string) => {
+        dispatch(connectionRequestAction.acceptConnection(peerId) as any)
+    }
+
+    const handleRejectConnection = (peerId: string) => {
+        dispatch(connectionRequestAction.rejectConnection(peerId) as any)
     }
 
     return (
@@ -117,6 +132,13 @@ export const App: React.FC = () => {
                     )}
                 </main>
             </div>
+
+            {/* Connection Request Dialog */}
+            <ConnectionRequestDialog
+                request={pendingRequest}
+                onAccept={handleAcceptConnection}
+                onReject={handleRejectConnection}
+            />
         </div>
     )
 }

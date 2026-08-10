@@ -1,10 +1,12 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import { ScrollArea } from '../ui/ScrollArea'
 import { MessageBubble } from './MessageBubble'
 import { MessageInput } from './MessageInput'
 import { TypingIndicator } from './TypingIndicator'
+import { KeyVerificationDialog } from '../security/KeyVerificationDialog'
 import { useChat } from '../../hooks/useChat'
 import { useFileTransfer } from '../../hooks/useFileTransfer'
+import { useEncryption } from '../../hooks/useEncryption'
 import { useI18n } from '../../hooks/useI18n'
 
 interface ChatViewProps {
@@ -15,8 +17,16 @@ interface ChatViewProps {
 export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
     const { messages, typing, myId, sendMessage, clearMessages } = useChat(peerId)
     const { sendFile } = useFileTransfer()
+    const {
+        fingerprint,
+        hasSessionKey,
+        getRemoteFingerprint,
+        markPeerVerified,
+        isPeerVerified,
+    } = useEncryption()
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const { t } = useI18n()
+    const [verifyDialogOpen, setVerifyDialogOpen] = useState(false)
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -38,6 +48,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
         }
         reader.readAsDataURL(file)
     }
+
+    // Encryption state for this peer
+    const isEncrypted = hasSessionKey(peerId)
+    const remoteFingerprint = getRemoteFingerprint(peerId)
+    const isVerified = isPeerVerified(peerId)
+    const canVerify = isEncrypted && !!remoteFingerprint && !!fingerprint
 
     if (!peerId) {
         return (
@@ -61,16 +77,37 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
                     <div className="w-2 h-2 rounded-full bg-[var(--success)]" />
                     <span className="font-medium text-[var(--text-primary)]">{peerName || peerId}</span>
                 </div>
-                <button
-                    onClick={clearMessages}
-                    className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)]"
-                    title={t.clearChat}
-                >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                </button>
+                <div className="flex items-center gap-1">
+                    {/* Security indicator */}
+                    {canVerify && (
+                        <button
+                            onClick={() => setVerifyDialogOpen(true)}
+                            className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-colors"
+                            title={isVerified ? t.keysVerified : t.verifyKeys}
+                        >
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                strokeWidth="2"
+                                stroke={isVerified ? 'var(--success)' : 'var(--text-tertiary)'}
+                            >
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            </svg>
+                        </button>
+                    )}
+                    <button
+                        onClick={clearMessages}
+                        className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)]"
+                        title={t.clearChat}
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             {/* Messages */}
@@ -97,6 +134,18 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
                 onSendFile={handleSendFile}
                 onSendImage={handleSendImage}
             />
+
+            {/* Key Verification Dialog */}
+            {fingerprint && remoteFingerprint && (
+                <KeyVerificationDialog
+                    open={verifyDialogOpen}
+                    onOpenChange={setVerifyDialogOpen}
+                    peerId={peerId}
+                    localFingerprint={fingerprint}
+                    remoteFingerprint={remoteFingerprint}
+                    onVerified={() => markPeerVerified(peerId)}
+                />
+            )}
         </div>
     )
 }

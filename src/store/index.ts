@@ -1,6 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit'
 import { PeerReducer } from "./peer/peerReducer";
 import { ConnectionReducer } from "./connection/connectionReducer";
+import { ConnectionRequestReducer } from "./connection/connectionRequestReducer";
 import { ChatReducer } from "./chat/chatReducer";
 import { FileReducer } from "./file/fileReducer";
 import { SettingsReducer } from "./settings/settingsReducer";
@@ -9,6 +10,7 @@ export const store = configureStore({
     reducer: {
         peer: PeerReducer,
         connection: ConnectionReducer,
+        connectionRequest: ConnectionRequestReducer,
         chat: ChatReducer,
         file: FileReducer,
         settings: SettingsReducer,

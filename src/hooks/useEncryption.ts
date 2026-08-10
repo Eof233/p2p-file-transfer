@@ -5,6 +5,8 @@ export const useEncryption = () => {
     const [keyPair, setKeyPair] = useState<RSAKeyPair | null>(null)
     const [sessionKeys, setSessionKeys] = useState<Record<string, CryptoKey>>({})
     const [fingerprint, setFingerprint] = useState<string>('')
+    const [peerFingerprints, setPeerFingerprints] = useState<Record<string, string>>({})
+    const [verifiedPeers, setVerifiedPeers] = useState<Record<string, boolean>>({})
 
     useEffect(() => {
         const init = async () => {
@@ -34,6 +36,11 @@ export const useEncryption = () => {
             const encrypted = await CryptoService.encryptSessionKey(sessionKey, peerKey)
 
             setSessionKeys((prev) => ({ ...prev, [peerId]: sessionKey }))
+
+            // Compute and store the remote peer's fingerprint
+            const remoteFingerprint = await CryptoService.generateFingerprint(peerKey)
+            setPeerFingerprints((prev) => ({ ...prev, [peerId]: remoteFingerprint }))
+
             return encrypted
         },
         [keyPair],
@@ -62,13 +69,37 @@ export const useEncryption = () => {
         [sessionKeys],
     )
 
+    const setPeerFingerprint = useCallback((peerId: string, fp: string) => {
+        setPeerFingerprints((prev) => ({ ...prev, [peerId]: fp }))
+    }, [])
+
+    const getRemoteFingerprint = useCallback(
+        (peerId: string): string => peerFingerprints[peerId] || '',
+        [peerFingerprints],
+    )
+
+    const markPeerVerified = useCallback((peerId: string) => {
+        setVerifiedPeers((prev) => ({ ...prev, [peerId]: true }))
+    }, [])
+
+    const isPeerVerified = useCallback(
+        (peerId: string): boolean => !!verifiedPeers[peerId],
+        [verifiedPeers],
+    )
+
     return {
         keyPair,
         fingerprint,
+        peerFingerprints,
+        verifiedPeers,
         getPublicKeyBase64,
         establishSession,
         encryptForPeer,
         decryptFromPeer,
         hasSessionKey,
+        setPeerFingerprint,
+        getRemoteFingerprint,
+        markPeerVerified,
+        isPeerVerified,
     }
 }
