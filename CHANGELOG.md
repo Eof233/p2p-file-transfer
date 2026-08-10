@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.5] - 2026-08-10
 
-### 🐛 Bug Fixes
+### 🐛 Bug Fixes (3 fixes)
+
+**Fix 1: Connection Loading Issue**
+- Add 15-second timeout for connection attempts
+- Show connection errors in UI
+
+**Fix 2: Incoming Connection Not Received**
+- Check `conn.open` state for incoming connections
+- Execute callback immediately if already open
+
+**Fix 3: Remote Connection & Message Reception**
+- **Remote timeout**: Add 5 Google STUN servers for NAT traversal
+- **Remote timeout**: Increase connection timeout to 30s
+- **Remote timeout**: Add reconnection with exponential backoff
+- **Messages not received**: Data handlers were no-ops (logged but didn't dispatch)
+- **Messages not received**: Now properly dispatch `addChatMessage` and `setChatTyping` to Redux
+
+#### Files Changed
+- [x] `src/helpers/peer.ts` - STUN servers, reconnection, timeout
+- [x] `src/store/connection/connectionActions.ts` - Message dispatch
+- [x] `src/store/connection/connectionRequestActions.ts` - Message dispatch
+- [x] `src/store/chat/chatActions.ts` - Error handling
 
 #### Connection Issues (2 fixes)
 
