@@ -11,13 +11,14 @@ interface SidebarProps {
     onSelect: (id: string) => void
     onConnect: (id: string) => void
     connectLoading?: boolean
+    connectError?: string
     myId?: string
     onCopyId?: () => void
     className?: string
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-    connections, selectedId, onSelect, onConnect, connectLoading, myId, onCopyId, className = ''
+    connections, selectedId, onSelect, onConnect, connectLoading, connectError, myId, onCopyId, className = ''
 }) => {
     const [showNewConnection, setShowNewConnection] = useState(false)
     const { t } = useI18n()
@@ -62,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* New Connection Form */}
             {showNewConnection && (
                 <div className="flex-shrink-0">
-                    <NewConnection onConnect={onConnect} loading={connectLoading} />
+                    <NewConnection onConnect={onConnect} loading={connectLoading} error={connectError} />
                 </div>
             )}
 

@@ -31,6 +31,9 @@ let peer: Peer | undefined
 let connectionMap: Map<string, DataConnection> = new Map<string, DataConnection>()
 let incomingConnectionCallback: ((conn: DataConnection) => void) | undefined
 
+// Connection timeout in milliseconds
+const CONNECTION_TIMEOUT = 15000
+
 export const PeerConnection = {
     getPeer: () => peer,
     getConnectionMap: () => connectionMap,
@@ -50,10 +53,26 @@ export const PeerConnection = {
             // Set up incoming connection handler
             peer.on('connection', (conn) => {
                 log.info('Incoming connection: ' + conn.peer)
-                connectionMap.set(conn.peer, conn)
-                if (incomingConnectionCallback) {
-                    incomingConnectionCallback(conn)
-                }
+
+                // Wait for the connection to open before adding to map
+                const peerId = conn.peer
+
+                conn.on('open', () => {
+                    log.debug('Incoming connection opened: ' + peerId)
+                    connectionMap.set(peerId, conn)
+                    if (incomingConnectionCallback) {
+                        incomingConnectionCallback(conn)
+                    }
+                })
+
+                conn.on('error', (err) => {
+                    log.error('Incoming connection error: ' + peerId, err)
+                })
+
+                conn.on('close', () => {
+                    log.info('Incoming connection closed: ' + peerId)
+                    connectionMap.delete(peerId)
+                })
             })
         } catch (err) {
             log.error('Failed to start peer session', err)
@@ -92,38 +111,80 @@ export const PeerConnection = {
             reject(new Error("Connection existed"))
             return
         }
+
+        let resolved = false
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
+
         try {
             let conn = peer.connect(id, { reliable: true })
             if (!conn) {
                 log.error('Failed to create connection to peer: ' + id)
                 reject(new Error("Connection can't be established"))
-            } else {
-                conn.on('open', function () {
-                    log.debug('Successfully connected to peer: ' + id)
-                    connectionMap.set(id, conn)
-                    peer?.removeListener('error', handlePeerError)
-                    resolve()
-                }).on('error', function (err) {
-                    log.error('Connection error for peer: ' + id, err)
-                    peer?.removeListener('error', handlePeerError)
-                    reject(err)
-                })
+                return
+            }
 
-                const handlePeerError = (err: PeerError<`${PeerErrorType}`>) => {
-                    if (err.type === 'peer-unavailable') {
-                        const messageSplit = err.message.split(' ')
-                        const peerId = messageSplit[messageSplit.length - 1]
-                        if (id === peerId) {
-                            log.error('Peer unavailable: ' + peerId)
-                            reject(err)
-                        }
+            // Set up timeout
+            timeoutId = setTimeout(() => {
+                if (!resolved) {
+                    resolved = true
+                    log.warn('Connection timeout for peer: ' + id)
+                    // Clean up the connection if it's still pending
+                    if (connectionMap.has(id)) {
+                        connectionMap.delete(id)
+                    }
+                    reject(new Error("Connection timeout"))
+                }
+            }, CONNECTION_TIMEOUT)
+
+            conn.on('open', function () {
+                if (resolved) return
+                resolved = true
+                if (timeoutId) clearTimeout(timeoutId)
+
+                log.debug('Successfully connected to peer: ' + id)
+                connectionMap.set(id, conn)
+                peer?.removeListener('error', handlePeerError)
+                resolve()
+            })
+
+            conn.on('error', function (err) {
+                if (resolved) return
+                resolved = true
+                if (timeoutId) clearTimeout(timeoutId)
+
+                log.error('Connection error for peer: ' + id, err)
+                peer?.removeListener('error', handlePeerError)
+                reject(err)
+            })
+
+            conn.on('close', function () {
+                log.info('Connection closed: ' + id)
+                connectionMap.delete(id)
+            })
+
+            const handlePeerError = (err: PeerError<`${PeerErrorType}`>) => {
+                if (resolved) return
+                if (err.type === 'peer-unavailable') {
+                    const messageSplit = err.message.split(' ')
+                    const peerId = messageSplit[messageSplit.length - 1]
+                    if (id === peerId) {
+                        resolved = true
+                        if (timeoutId) clearTimeout(timeoutId)
+                        log.error('Peer unavailable: ' + peerId)
+                        peer?.removeListener('error', handlePeerError)
+                        reject(err)
                     }
                 }
-                peer.on('error', handlePeerError);
             }
+            peer.on('error', handlePeerError);
+
         } catch (err) {
-            log.error('Failed to connect to peer: ' + id, err)
-            reject(err)
+            if (!resolved) {
+                resolved = true
+                if (timeoutId) clearTimeout(timeoutId)
+                log.error('Failed to connect to peer: ' + id, err)
+                reject(err)
+            }
         }
     }),
 

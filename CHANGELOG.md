@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-08-10
+
+### 🐛 Bug Fixes
+
+#### Connection Loading Issue
+- **Problem**: Initiator shows loading spinner even after remote accepts connection
+- **Root Cause**: `open` event not firing reliably on initiator side; incoming connections added to map before fully open
+- **Fix**: 
+  - Wait for `open` event on incoming connections before adding to connectionMap
+  - Add 15-second timeout for connection attempts
+  - Add error state to connection reducer
+  - Show connection errors in UI with auto-dismiss
+
+#### Changes
+- [x] Update peer.ts - wait for `open` event on incoming connections
+- [x] Add timeout mechanism (15s) for connection attempts
+- [x] Add CONNECTION_ERROR action type
+- [x] Update connection reducer to handle errors
+- [x] Update NewConnection component to show errors
+- [x] Update Sidebar to pass error prop
+
+---
+
 ## [1.0.4] - 2026-08-10
 
 ### 🖥️ Tauri Desktop App Configuration

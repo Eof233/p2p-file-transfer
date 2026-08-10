@@ -6,9 +6,10 @@ import { useI18n } from '../../hooks/useI18n'
 interface NewConnectionProps {
     onConnect: (peerId: string) => void
     loading?: boolean
+    error?: string
 }
 
-export const NewConnection: React.FC<NewConnectionProps> = ({ onConnect, loading }) => {
+export const NewConnection: React.FC<NewConnectionProps> = ({ onConnect, loading, error: connectionError }) => {
     const [peerId, setPeerId] = useState('')
     const [error, setError] = useState('')
     const { t } = useI18n()
@@ -25,6 +26,8 @@ export const NewConnection: React.FC<NewConnectionProps> = ({ onConnect, loading
         setPeerId('')
     }
 
+    const displayError = error || connectionError
+
     return (
         <form onSubmit={handleSubmit} className="px-3 py-2 border-b border-[var(--separator)]">
             <div className="flex gap-2 items-start">
@@ -36,7 +39,7 @@ export const NewConnection: React.FC<NewConnectionProps> = ({ onConnect, loading
                             setPeerId(e.target.value)
                             setError('')
                         }}
-                        error={error}
+                        error={displayError}
                     />
                 </div>
                 <Button

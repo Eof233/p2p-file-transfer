@@ -3,7 +3,8 @@ export enum ConnectionActionType {
     CONNECTION_CONNECT_LOADING = 'CONNECTION_CONNECT_LOADING',
     CONNECTION_LIST_ADD = 'CONNECTION_LIST_ADD',
     CONNECTION_LIST_REMOVE = 'CONNECTION_LIST_REMOVE',
-    CONNECTION_ITEM_SELECT = 'CONNECTION_ITEM_SELECT'
+    CONNECTION_ITEM_SELECT = 'CONNECTION_ITEM_SELECT',
+    CONNECTION_ERROR = 'CONNECTION_ERROR',
 }
 
 export interface ConnectionState {
@@ -11,4 +12,5 @@ export interface ConnectionState {
     readonly loading: boolean
     readonly list: string[]
     readonly selectedId?: string
+    readonly error?: string
 }

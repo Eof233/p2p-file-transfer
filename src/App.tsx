@@ -80,6 +80,7 @@ export const App: React.FC = () => {
                         onSelect={handleSelectConnection}
                         onConnect={handleConnectPeer}
                         connectLoading={connection.loading}
+                        connectError={connection.error}
                         myId={peer.id}
                         onCopyId={handleCopyId}
                         className="w-[var(--sidebar-width)]"
