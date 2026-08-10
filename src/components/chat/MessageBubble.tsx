@@ -7,9 +7,10 @@ interface MessageBubbleProps {
     message: ChatMessage
     isOwn: boolean
     showAvatar?: boolean
+    onImageClick?: (imageData: string) => void
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, showAvatar = true }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, showAvatar = true, onImageClick }) => {
     const statusIcons = {
         sent: '✓',
         delivered: '✓✓',
@@ -21,18 +22,29 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, sh
             {showAvatar && !isOwn && (
                 <Avatar fallback={message.senderId} size="sm" />
             )}
-            <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
+            <div className={`flex flex-col max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
                 <div className={`px-3 py-2 rounded-2xl ${
                     isOwn
                         ? 'bg-[var(--accent)] text-white rounded-br-md'
                         : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-bl-md'
                 }`}>
                     {message.type === 'image' && message.imageData && (
-                        <img
-                            src={message.imageData}
-                            alt="Shared image"
-                            className="max-w-full rounded-lg mb-1 cursor-pointer hover:opacity-90 transition-opacity"
-                        />
+                        <div
+                            className="cursor-pointer group relative"
+                            onClick={() => onImageClick?.(message.imageData!)}
+                        >
+                            <img
+                                src={message.imageData}
+                                alt="Shared image"
+                                className="max-w-[280px] max-h-[200px] rounded-lg object-cover transition-opacity group-hover:opacity-90"
+                                style={{ width: 'auto', height: 'auto' }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                                </svg>
+                            </div>
+                        </div>
                     )}
                     {message.type === 'file' && (
                         <div className="flex items-center gap-2 p-2 bg-[var(--overlay)] rounded-lg mb-1">

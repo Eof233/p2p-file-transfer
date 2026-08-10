@@ -82,7 +82,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onOpenChan
                         </div>
                         <button
                             onClick={handleEncryptionToggle}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${
+                            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
                                 settings.encryptionEnabled ? 'bg-[var(--success)]' : 'bg-[var(--bg-tertiary)]'
                             }`}
                         >
@@ -103,7 +103,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onOpenChan
                         </div>
                         <button
                             onClick={handleNotificationsToggle}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${
+                            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
                                 settings.notificationsEnabled ? 'bg-[var(--success)]' : 'bg-[var(--bg-tertiary)]'
                             }`}
                         >

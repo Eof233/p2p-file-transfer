@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-08-10
+
+### 🎨 UI Fixes & Image Preview
+
+#### Alignment Fixes
+- [x] Header buttons consistent height (h-8)
+- [x] MessageInput buttons vertically centered
+- [x] MessageBubble content flex layout for proper alignment
+- [x] Input error messages fixed height to prevent layout shift
+- [x] Settings toggle switches flex-shrink-0
+
+#### Image Display
+- [x] Limit chat image size to 280x200px
+- [x] Click-to-enlarge image preview modal
+- [x] ESC key to close preview
+- [x] Download button in preview
+- [x] Zoom icon overlay on hover
+- [x] Smooth animations for preview
+
+---
+
 ## [1.0.1] - 2026-08-10
 
 ### 🔧 Feature Completions

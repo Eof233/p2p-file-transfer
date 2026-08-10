@@ -3,6 +3,7 @@ import { ScrollArea } from '../ui/ScrollArea'
 import { MessageBubble } from './MessageBubble'
 import { MessageInput } from './MessageInput'
 import { TypingIndicator } from './TypingIndicator'
+import { ImagePreviewModal } from './ImagePreviewModal'
 import { KeyVerificationDialog } from '../security/KeyVerificationDialog'
 import { useChat } from '../../hooks/useChat'
 import { useFileTransfer } from '../../hooks/useFileTransfer'
@@ -27,6 +28,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const { t } = useI18n()
     const [verifyDialogOpen, setVerifyDialogOpen] = useState(false)
+    const [previewImage, setPreviewImage] = useState<string | null>(null)
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -119,6 +121,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
                             message={msg}
                             isOwn={msg.senderId === myId}
                             showAvatar={i === 0 || messages[i - 1].senderId !== msg.senderId}
+                            onImageClick={setPreviewImage}
                         />
                     ))}
                     <div ref={messagesEndRef} />
@@ -146,6 +149,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
                     onVerified={() => markPeerVerified(peerId)}
                 />
             )}
+
+            {/* Image Preview Modal */}
+            <ImagePreviewModal
+                open={!!previewImage}
+                onClose={() => setPreviewImage(null)}
+                imageData={previewImage || ''}
+            />
         </div>
     )
 }

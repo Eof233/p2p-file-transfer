@@ -26,6 +26,8 @@ export interface Translations {
     peerIsTyping: string
     imagePasted: string
     pasteImage: string
+    closePreview: string
+    downloadImage: string
 
     // Settings
     appearance: string
@@ -109,6 +111,8 @@ const en: Translations = {
     peerIsTyping: 'is typing...',
     imagePasted: 'Image pasted',
     pasteImage: 'Paste image from clipboard (Ctrl+V)',
+    closePreview: 'Close preview',
+    downloadImage: 'Download image',
 
     appearance: 'Appearance',
     light: 'Light',
@@ -187,6 +191,8 @@ const zh: Translations = {
     peerIsTyping: '正在输入...',
     imagePasted: '图片已粘贴',
     pasteImage: '从剪贴板粘贴图片 (Ctrl+V)',
+    closePreview: '关闭预览',
+    downloadImage: '下载图片',
 
     appearance: '外观',
     light: '浅色',

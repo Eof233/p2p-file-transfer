@@ -36,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({ myId, isStarted, onStart, onStop
                         <Tooltip content={t.copyId}>
                             <button
                                 onClick={onCopyId}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                                className="flex items-center gap-2 px-3 h-8 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                             >
                                 <div className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />
                                 <code className="text-xs font-mono text-[var(--text-secondary)]">
@@ -63,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({ myId, isStarted, onStart, onStop
                     <Tooltip content={t.settings}>
                         <button
                             onClick={() => setSettingsOpen(true)}
-                            className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] transition-colors"
+                            className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] transition-colors"
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <circle cx="12" cy="12" r="3" />
