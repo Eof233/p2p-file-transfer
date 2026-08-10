@@ -9,20 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 Bug Fixes
 
-#### Connection Loading Issue
+#### Connection Issues (2 fixes)
+
+**Fix 1: Connection Loading Issue**
 - **Problem**: Initiator shows loading spinner even after remote accepts connection
-- **Root Cause**: `open` event not firing reliably on initiator side; incoming connections added to map before fully open
-- **Fix**: 
-  - Wait for `open` event on incoming connections before adding to connectionMap
-  - Add 15-second timeout for connection attempts
-  - Add error state to connection reducer
-  - Show connection errors in UI with auto-dismiss
+- **Root Cause**: `open` event not firing reliably on initiator side
+- **Fix**: Add 15-second timeout for connection attempts
+
+**Fix 2: Incoming Connection Not Received**
+- **Problem**: After Fix 1, incoming connections not showing to remote
+- **Root Cause**: PeerJS may fire `connection` event after connection is already open; waiting for `open` event that never fires
+- **Fix**: Check `conn.open` state; if already open, execute callback immediately
 
 #### Changes
-- [x] Update peer.ts - wait for `open` event on incoming connections
-- [x] Add timeout mechanism (15s) for connection attempts
+- [x] Add timeout mechanism (15s) for outgoing connections
+- [x] Check `conn.open` for incoming connections
 - [x] Add CONNECTION_ERROR action type
 - [x] Update connection reducer to handle errors
+- [x] Show connection errors in UI with auto-dismiss
 - [x] Update NewConnection component to show errors
 - [x] Update Sidebar to pass error prop
 
