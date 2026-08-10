@@ -8,7 +8,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:mac-arm": "tauri build --target aarch64-apple-darwin"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.0.4",
@@ -19,6 +23,8 @@
     "@radix-ui/react-toast": "^1.1.5",
     "@radix-ui/react-tooltip": "^1.0.7",
     "@reduxjs/toolkit": "^1.9.5",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/cli": "^2.11.4",
     "lucide-react": "^0.294.0",
     "peerjs": "^1.5.2",
     "react": "^18.2.0",

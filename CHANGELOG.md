@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-08-10
+
+### 🖥️ Tauri Desktop App Configuration
+
+#### Setup
+- [x] Add Tauri 1.x dependencies
+- [x] Create src-tauri configuration
+- [x] Configure build for multiple platforms
+- [x] Add npm scripts for Tauri
+
+#### Build Targets
+- [x] macOS ARM64 (Apple Silicon M1/M2/M3)
+- [x] macOS x64 (Intel)
+- [x] Windows x64
+- [x] Linux x64
+
+#### GitHub Actions
+- [x] Cross-platform build workflow
+- [x] Automatic release on tag push
+- [x] Upload build artifacts
+
+---
+
 ## [1.0.3] - 2026-08-10
 
 ### Logging System
