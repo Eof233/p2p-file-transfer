@@ -1,0 +1,159 @@
+export interface EncryptedData {
+    iv: Uint8Array<ArrayBuffer>
+    data: ArrayBuffer
+}
+
+export interface RSAKeyPair {
+    publicKey: CryptoKey
+    privateKey: CryptoKey
+}
+
+export const CryptoService = {
+    // RSA Key Management
+
+    generateKeyPair: async (): Promise<RSAKeyPair> => {
+        const keyPair = await window.crypto.subtle.generateKey(
+            {
+                name: 'RSA-OAEP',
+                modulusLength: 2048,
+                publicExponent: new Uint8Array([1, 0, 1]),
+                hash: 'SHA-256',
+            },
+            true,
+            ['encrypt', 'decrypt']
+        )
+        return {
+            publicKey: keyPair.publicKey,
+            privateKey: keyPair.privateKey,
+        }
+    },
+
+    exportPublicKey: async (key: CryptoKey): Promise<string> => {
+        const spkiBuffer = await window.crypto.subtle.exportKey('spki', key)
+        const bytes = new Uint8Array(spkiBuffer)
+        let binary = ''
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i])
+        }
+        return btoa(binary)
+    },
+
+    importPublicKey: async (keyData: string): Promise<CryptoKey> => {
+        const binary = atob(keyData)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i)
+        }
+        return window.crypto.subtle.importKey(
+            'spki',
+            bytes.buffer,
+            {
+                name: 'RSA-OAEP',
+                hash: 'SHA-256',
+            },
+            true,
+            ['encrypt']
+        )
+    },
+
+    generateFingerprint: async (publicKey: CryptoKey): Promise<string> => {
+        const spkiBuffer = await window.crypto.subtle.exportKey('spki', publicKey)
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', spkiBuffer)
+        const hashBytes = new Uint8Array(hashBuffer)
+        return Array.from(hashBytes)
+            .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
+            .join(':')
+    },
+
+    // AES Session Key Management
+
+    generateSessionKey: async (): Promise<CryptoKey> => {
+        return window.crypto.subtle.generateKey(
+            {
+                name: 'AES-GCM',
+                length: 256,
+            },
+            true,
+            ['encrypt', 'decrypt']
+        )
+    },
+
+    encryptSessionKey: async (sessionKey: CryptoKey, publicKey: CryptoKey): Promise<ArrayBuffer> => {
+        const rawKey = await window.crypto.subtle.exportKey('raw', sessionKey)
+        return window.crypto.subtle.encrypt(
+            {
+                name: 'RSA-OAEP',
+            },
+            publicKey,
+            rawKey
+        )
+    },
+
+    decryptSessionKey: async (encryptedKey: ArrayBuffer, privateKey: CryptoKey): Promise<CryptoKey> => {
+        const rawKey = await window.crypto.subtle.decrypt(
+            {
+                name: 'RSA-OAEP',
+            },
+            privateKey,
+            encryptedKey
+        )
+        return window.crypto.subtle.importKey(
+            'raw',
+            rawKey,
+            {
+                name: 'AES-GCM',
+                length: 256,
+            },
+            true,
+            ['encrypt', 'decrypt']
+        )
+    },
+
+    // Data Encryption/Decryption
+
+    encrypt: async (data: ArrayBuffer, sessionKey: CryptoKey): Promise<EncryptedData> => {
+        const iv = new Uint8Array(12)
+        window.crypto.getRandomValues(iv)
+        const encryptedBuffer = await window.crypto.subtle.encrypt(
+            {
+                name: 'AES-GCM',
+                iv,
+            },
+            sessionKey,
+            data
+        )
+        return {
+            iv,
+            data: encryptedBuffer,
+        }
+    },
+
+    decrypt: async (encryptedData: EncryptedData, sessionKey: CryptoKey): Promise<ArrayBuffer> => {
+        return window.crypto.subtle.decrypt(
+            {
+                name: 'AES-GCM',
+                iv: encryptedData.iv,
+            },
+            sessionKey,
+            encryptedData.data
+        )
+    },
+
+    // Helper: encrypt string
+
+    encryptString: async (text: string, sessionKey: CryptoKey): Promise<EncryptedData> => {
+        const encoder = new TextEncoder()
+        const encoded = encoder.encode(text)
+        const data = new ArrayBuffer(encoded.byteLength)
+        new Uint8Array(data).set(encoded)
+        return CryptoService.encrypt(data, sessionKey)
+    },
+
+    // Helper: decrypt to string
+
+    decryptToString: async (encryptedData: EncryptedData, sessionKey: CryptoKey): Promise<string> => {
+        const decryptedBuffer = await CryptoService.decrypt(encryptedData, sessionKey)
+        const decoder = new TextDecoder()
+        return decoder.decode(decryptedBuffer)
+    },
+}

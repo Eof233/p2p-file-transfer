@@ -1,0 +1,24 @@
+export enum ChatActionType {
+    CHAT_MESSAGE_ADD = 'CHAT_MESSAGE_ADD',
+    CHAT_HISTORY_SET = 'CHAT_HISTORY_SET',
+    CHAT_TYPING_SET = 'CHAT_TYPING_SET',
+    CHAT_MESSAGES_CLEAR = 'CHAT_MESSAGES_CLEAR',
+}
+
+export interface ChatMessage {
+    readonly id: string
+    readonly senderId: string
+    readonly content: string
+    readonly timestamp: number
+    readonly type: 'text' | 'image' | 'file'
+    readonly status: 'sent' | 'delivered' | 'read'
+    readonly fileName?: string
+    readonly fileSize?: number
+    readonly fileType?: string
+    readonly imageData?: string  // base64 for inline images
+}
+
+export interface ChatState {
+    readonly messages: Record<string, ChatMessage[]>  // keyed by peerId
+    readonly typing: Record<string, boolean>  // keyed by peerId
+}

@@ -1,8 +1,6 @@
-import {ConnectionActionType} from "./connectionTypes";
-import {Dispatch} from "redux";
-import {DataType, PeerConnection} from "../../helpers/peer";
-import {message} from "antd";
-import download from "js-file-download";
+import { ConnectionActionType } from "./connectionTypes";
+import { Dispatch } from "redux";
+import { PeerConnection } from "../../helpers/peer";
 
 export const changeConnectionInput = (id: string) => ({
     type: ConnectionActionType.CONNECTION_INPUT_CHANGE, id
@@ -11,6 +9,7 @@ export const changeConnectionInput = (id: string) => ({
 export const setLoading = (loading: boolean) => ({
     type: ConnectionActionType.CONNECTION_CONNECT_LOADING, loading
 })
+
 export const addConnectionList = (id: string) => ({
     type: ConnectionActionType.CONNECTION_LIST_ADD, id
 })
@@ -25,25 +24,21 @@ export const selectItem = (id: string) => ({
 
 export const connectPeer: (id: string) => (dispatch: Dispatch) => Promise<void>
     = (id: string) => (async (dispatch) => {
-    dispatch(setLoading(true))
-    try {
-        await PeerConnection.connectPeer(id)
-        PeerConnection.onConnectionDisconnected(id, () => {
-            message.info("Connection closed: " + id)
-            dispatch(removeConnectionList(id))
-        })
-        PeerConnection.onConnectionReceiveData(id, (file) => {
-            message.info("Receiving file " + file.fileName + " from " + id)
-            if (file.dataType === DataType.FILE) {
-                download(file.file || '', file.fileName || "fileName", file.fileType)
-            }
-        })
-        dispatch(addConnectionList(id))
-        dispatch(setLoading(false))
-    } catch (err) {
-        dispatch(setLoading(false))
-        console.log(err)
-    }
-})
-
-
+        dispatch(setLoading(true))
+        try {
+            await PeerConnection.connectPeer(id)
+            PeerConnection.onConnectionDisconnected(id, () => {
+                console.log("Connection closed: " + id)
+                dispatch(removeConnectionList(id))
+            })
+            PeerConnection.onConnectionReceiveData(id, (data) => {
+                console.log("Receiving data from " + id, data.dataType)
+                // Data handling is done in the components via hooks
+            })
+            dispatch(addConnectionList(id))
+            dispatch(setLoading(false))
+        } catch (err) {
+            dispatch(setLoading(false))
+            console.log(err)
+        }
+    })

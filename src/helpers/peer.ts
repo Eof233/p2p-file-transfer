@@ -1,24 +1,37 @@
-import Peer, {DataConnection, PeerErrorType, PeerError} from "peerjs";
-import {message} from "antd";
+import Peer, { DataConnection, PeerErrorType, PeerError } from "peerjs";
 
 export enum DataType {
     FILE = 'FILE',
+    MESSAGE = 'MESSAGE',
+    IMAGE = 'IMAGE',
+    TYPING = 'TYPING',
+    KEY_EXCHANGE = 'KEY_EXCHANGE',
     OTHER = 'OTHER'
-
 }
+
 export interface Data {
     dataType: DataType
     file?: Blob
     fileName?: string
     fileType?: string
+    fileSize?: number
     message?: string
+    imageData?: string
+    transferId?: string
+    chunkIndex?: number
+    totalChunks?: number
+    encrypted?: boolean
+    keyData?: string
 }
 
 let peer: Peer | undefined
 let connectionMap: Map<string, DataConnection> = new Map<string, DataConnection>()
+let incomingConnectionCallback: ((conn: DataConnection) => void) | undefined
 
 export const PeerConnection = {
     getPeer: () => peer,
+    getConnectionMap: () => connectionMap,
+
     startPeerSession: () => new Promise<string>((resolve, reject) => {
         try {
             peer = new Peer()
@@ -27,16 +40,31 @@ export const PeerConnection = {
                 resolve(id)
             }).on('error', (err) => {
                 console.log(err)
-                message.error(err.message)
+                reject(err)
+            })
+
+            // Set up incoming connection handler
+            peer.on('connection', (conn) => {
+                console.log("Incoming connection: " + conn.peer)
+                connectionMap.set(conn.peer, conn)
+                if (incomingConnectionCallback) {
+                    incomingConnectionCallback(conn)
+                }
             })
         } catch (err) {
             console.log(err)
             reject(err)
         }
     }),
+
     closePeerSession: () => new Promise<void>((resolve, reject) => {
         try {
             if (peer) {
+                // Close all connections
+                connectionMap.forEach((conn) => {
+                    conn.close()
+                })
+                connectionMap.clear()
                 peer.destroy()
                 peer = undefined
             }
@@ -46,6 +74,7 @@ export const PeerConnection = {
             reject(err)
         }
     }),
+
     connectPeer: (id: string) => new Promise<void>((resolve, reject) => {
         if (!peer) {
             reject(new Error("Peer doesn't start yet"))
@@ -56,24 +85,21 @@ export const PeerConnection = {
             return
         }
         try {
-            let conn = peer.connect(id, {reliable: true})
+            let conn = peer.connect(id, { reliable: true })
             if (!conn) {
                 reject(new Error("Connection can't be established"))
             } else {
-                conn.on('open', function() {
+                conn.on('open', function () {
                     console.log("Connect to: " + id)
                     connectionMap.set(id, conn)
                     peer?.removeListener('error', handlePeerError)
                     resolve()
-                }).on('error', function(err) {
+                }).on('error', function (err) {
                     console.log(err)
                     peer?.removeListener('error', handlePeerError)
                     reject(err)
                 })
 
-                // When the connection fails due to expiry, the error gets emmitted
-                // to the peer instead of to the connection.
-                // We need to handle this here to be able to fulfill the Promise.
                 const handlePeerError = (err: PeerError<`${PeerErrorType}`>) => {
                     if (err.type === 'peer-unavailable') {
                         const messageSplit = err.message.split(' ')
@@ -87,49 +113,46 @@ export const PeerConnection = {
             reject(err)
         }
     }),
+
     onIncomingConnection: (callback: (conn: DataConnection) => void) => {
-        peer?.on('connection', function (conn) {
-            console.log("Incoming connection: " + conn.peer)
-            connectionMap.set(conn.peer, conn)
-            callback(conn)
-        });
+        incomingConnectionCallback = callback
     },
+
     onConnectionDisconnected: (id: string, callback: () => void) => {
-        if (!peer) {
-            throw new Error("Peer doesn't start yet")
-        }
         if (!connectionMap.has(id)) {
-            throw new Error("Connection didn't exist")
+            return
         }
-        let conn = connectionMap.get(id);
+        let conn = connectionMap.get(id)
         if (conn) {
             conn.on('close', function () {
                 console.log("Connection closed: " + id)
                 connectionMap.delete(id)
                 callback()
-            });
+            })
         }
     },
+
     sendConnection: (id: string, data: Data): Promise<void> => new Promise((resolve, reject) => {
         if (!connectionMap.has(id)) {
             reject(new Error("Connection didn't exist"))
+            return
         }
         try {
-            let conn = connectionMap.get(id);
+            let conn = connectionMap.get(id)
             if (conn) {
                 conn.send(data)
+                resolve()
+            } else {
+                reject(new Error("Connection not found"))
             }
         } catch (err) {
             reject(err)
         }
-        resolve()
     }),
+
     onConnectionReceiveData: (id: string, callback: (f: Data) => void) => {
-        if (!peer) {
-            throw new Error("Peer doesn't start yet")
-        }
         if (!connectionMap.has(id)) {
-            throw new Error("Connection didn't exist")
+            return
         }
         let conn = connectionMap.get(id)
         if (conn) {
@@ -139,6 +162,23 @@ export const PeerConnection = {
                 callback(data)
             })
         }
-    }
+    },
 
+    disconnectPeer: (id: string) => {
+        if (connectionMap.has(id)) {
+            const conn = connectionMap.get(id)
+            if (conn) {
+                conn.close()
+            }
+            connectionMap.delete(id)
+        }
+    },
+
+    isConnected: (id: string): boolean => {
+        return connectionMap.has(id)
+    },
+
+    getConnectedPeers: (): string[] => {
+        return Array.from(connectionMap.keys())
+    }
 }

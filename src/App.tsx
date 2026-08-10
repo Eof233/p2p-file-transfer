@@ -1,39 +1,27 @@
-import React from 'react';
-import {Button, Card, Col, Input, Menu, MenuProps, message, Row, Space, Typography, Upload, UploadFile} from "antd";
-import {CopyOutlined, UploadOutlined} from "@ant-design/icons";
-import {useAppDispatch, useAppSelector} from "./store/hooks";
-import {startPeer, stopPeerSession} from "./store/peer/peerActions";
-import * as connectionAction from "./store/connection/connectionActions"
-import {DataType, PeerConnection} from "./helpers/peer";
-import {useAsyncState} from "./helpers/hooks";
-
-const {Title} = Typography
-type MenuItem = Required<MenuProps>['items'][number]
-
-function getItem(
-    label: React.ReactNode,
-    key: React.Key,
-    icon?: React.ReactNode,
-    children?: MenuItem[],
-    type?: 'group',
-): MenuItem {
-    return {
-        key,
-        icon,
-        children,
-        label,
-        type,
-    } as MenuItem;
-}
+import React, { useEffect } from 'react'
+import { Header } from './components/Header'
+import { Sidebar } from './components/sidebar/Sidebar'
+import { ChatView } from './components/chat/ChatView'
+import { useAppSelector, useAppDispatch } from './store/hooks'
+import { startPeer, stopPeerSession } from './store/peer/peerActions'
+import * as connectionAction from './store/connection/connectionActions'
+import { DataType, PeerConnection } from './helpers/peer'
+import { loadSettings } from './store/settings/settingsActions'
+import './styles/globals.css'
+import './styles/animations.css'
 
 export const App: React.FC = () => {
-
+    const dispatch = useAppDispatch()
     const peer = useAppSelector((state) => state.peer)
     const connection = useAppSelector((state) => state.connection)
-    const dispatch = useAppDispatch()
+
+    // Load settings on mount
+    useEffect(() => {
+        dispatch(loadSettings() as any)
+    }, [dispatch])
 
     const handleStartSession = () => {
-        dispatch(startPeer())
+        dispatch(startPeer() as any)
     }
 
     const handleStopSession = async () => {
@@ -41,111 +29,95 @@ export const App: React.FC = () => {
         dispatch(stopPeerSession())
     }
 
-    const handleConnectOtherPeer = () => {
-        connection.id != null ? dispatch(connectionAction.connectPeer(connection.id || "")) : message.warning("Please enter ID")
+    const handleConnectPeer = (id: string) => {
+        dispatch(connectionAction.connectPeer(id) as any)
     }
 
-    const [fileList, setFileList] = useAsyncState([] as UploadFile[])
-    const [sendLoading, setSendLoading] = useAsyncState(false)
+    const handleSelectConnection = (id: string) => {
+        dispatch(connectionAction.selectItem(id))
+    }
 
-    const handleUpload = async () => {
-        if (fileList.length === 0) {
-            message.warning("Please select file")
-            return
-        }
-        if (!connection.selectedId) {
-            message.warning("Please select a connection")
-            return
-        }
-        try {
-            await setSendLoading(true);
-            let file = fileList[0] as unknown as File;
-            let blob = new Blob([file], {type: file.type});
-
-            await PeerConnection.sendConnection(connection.selectedId, {
-                dataType: DataType.FILE,
-                file: blob,
-                fileName: file.name,
-                fileType: file.type
-            })
-            await setSendLoading(false)
-            message.info("Send file successfully")
-        } catch (err) {
-            await setSendLoading(false)
-            console.log(err)
-            message.error("Error when sending file")
+    const handleCopyId = async () => {
+        if (peer.id) {
+            await navigator.clipboard.writeText(peer.id)
         }
     }
 
     return (
-        <Row justify={"center"} align={"top"}>
-            <Col xs={24} sm={24} md={20} lg={16} xl={12}>
-                <Card>
-                    <Title level={2} style={{textAlign: "center"}}>P2P File Transfer</Title>
-                        <Card hidden={peer.started}>
-                            <Button onClick={handleStartSession} loading={peer.loading}>Start</Button>
-                        </Card>
-                        <Card hidden={!peer.started}>
-                            <Space direction="horizontal">
-                                <div>ID: {peer.id}</div>
-                                <Button icon={<CopyOutlined/>} onClick={async () => {
-                                    await navigator.clipboard.writeText(peer.id || "")
-                                    message.info("Copied: " + peer.id)
-                                }}/>
-                                <Button danger onClick={handleStopSession}>Stop</Button>
-                            </Space>
-                        </Card>
-                        <div hidden={!peer.started}>
-                            <Card>
-                                <Space direction="horizontal">
-                                    <Input placeholder={"ID"}
-                                           onChange={e => dispatch(connectionAction.changeConnectionInput(e.target.value))}
-                                           required={true}
-                                           />
-                                    <Button onClick={handleConnectOtherPeer}
-                                            loading={connection.loading}>Connect</Button>
-                                </Space>
-                            </Card>
+        <div className="flex flex-col h-screen bg-[var(--bg-primary)]">
+            {/* Header */}
+            <Header
+                myId={peer.id}
+                isStarted={peer.started}
+                onStart={handleStartSession}
+                onStop={handleStopSession}
+                onCopyId={handleCopyId}
+                loading={peer.loading}
+            />
 
-                            <Card title="Connection">
-                                {
-                                    connection.list.length === 0
-                                        ? <div>Waiting for connection ...</div>
-                                        : <div>
-                                            Select a connection
-                                            <Menu selectedKeys={connection.selectedId ? [connection.selectedId] : []}
-                                                  onSelect={(item) => dispatch(connectionAction.selectItem(item.key))}
-                                                  items={connection.list.map(e => getItem(e, e, null))}/>
-                                        </div>
-                                }
+            {/* Main Content */}
+            <div className="flex flex-1 overflow-hidden">
+                {/* Sidebar */}
+                {peer.started && (
+                    <Sidebar
+                        connections={connection.list}
+                        selectedId={connection.selectedId}
+                        onSelect={handleSelectConnection}
+                        onConnect={handleConnectPeer}
+                        connectLoading={connection.loading}
+                        myId={peer.id}
+                        onCopyId={handleCopyId}
+                        className="w-[var(--sidebar-width)]"
+                    />
+                )}
 
-                            </Card>
-                            <Card title="Send File">
-                                <Upload fileList={fileList}
-                                        maxCount={1}
-                                        onRemove={() => setFileList([])}
-                                        beforeUpload={(file) => {
-                                            setFileList([file])
-                                            return false
-                                        }}>
-                                    <Button icon={<UploadOutlined/>}>Select File</Button>
-                                </Upload>
-                                <Button
-                                    type="primary"
-                                    onClick={handleUpload}
-                                    disabled={fileList.length === 0}
-                                    loading={sendLoading}
-                                    style={{marginTop: 16}}
+                {/* Chat Area */}
+                <main className="flex-1 flex flex-col">
+                    {peer.started ? (
+                        <ChatView
+                            peerId={connection.selectedId || ''}
+                            peerName={connection.selectedId}
+                        />
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-center animate-fade-in">
+                                <div className="w-20 h-20 mx-auto mb-6 flex items-center justify-center rounded-2xl bg-[var(--bg-secondary)]">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                        <line x1="9" y1="9" x2="15" y2="9" />
+                                        <line x1="9" y1="13" x2="13" y2="13" />
+                                    </svg>
+                                </div>
+                                <h2 className="text-2xl font-semibold text-[var(--text-primary)] mb-2">
+                                    P2P Messenger
+                                </h2>
+                                <p className="text-[var(--text-secondary)] mb-6 max-w-md">
+                                    Secure, peer-to-peer communication with end-to-end encryption.
+                                    Start a session to connect with others.
+                                </p>
+                                <button
+                                    onClick={handleStartSession}
+                                    disabled={peer.loading}
+                                    className="press-feedback px-6 py-3 bg-[var(--accent)] text-white rounded-lg font-medium hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50"
                                 >
-                                    {sendLoading ? 'Sending' : 'Send'}
-                                </Button>
-                            </Card>
+                                    {peer.loading ? (
+                                        <span className="flex items-center gap-2">
+                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                            Starting...
+                                        </span>
+                                    ) : (
+                                        'Start Session'
+                                    )}
+                                </button>
+                            </div>
                         </div>
-                </Card>
-            </Col>
-
-
-        </Row>
+                    )}
+                </main>
+            </div>
+        </div>
     )
 }
 
