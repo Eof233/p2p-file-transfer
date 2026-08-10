@@ -53,17 +53,23 @@ export const PeerConnection = {
             // Set up incoming connection handler
             peer.on('connection', (conn) => {
                 log.info('Incoming connection: ' + conn.peer)
-
-                // Wait for the connection to open before adding to map
                 const peerId = conn.peer
 
-                conn.on('open', () => {
+                const handleOpen = () => {
                     log.debug('Incoming connection opened: ' + peerId)
                     connectionMap.set(peerId, conn)
                     if (incomingConnectionCallback) {
                         incomingConnectionCallback(conn)
                     }
-                })
+                }
+
+                // Check if connection is already open (PeerJS may fire 'connection' after 'open')
+                if (conn.open) {
+                    log.debug('Connection already open for peer: ' + peerId)
+                    handleOpen()
+                } else {
+                    conn.on('open', handleOpen)
+                }
 
                 conn.on('error', (err) => {
                     log.error('Incoming connection error: ' + peerId, err)
