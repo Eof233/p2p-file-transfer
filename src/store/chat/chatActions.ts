@@ -1,6 +1,9 @@
 import {ChatActionType, ChatMessage} from "./chatTypes";
 import {Dispatch} from "redux";
 import {DataType, PeerConnection} from "../../helpers/peer";
+import {createLogger} from "../../services/logService";
+
+const log = createLogger('ChatActions')
 
 export const addChatMessage = (peerId: string, message: ChatMessage) => ({
     type: ChatActionType.CHAT_MESSAGE_ADD, peerId, message
@@ -35,6 +38,8 @@ export const sendMessage:
         ...additionalData
     }
 
+    log.debug('Sending message to peer: ' + peerId + ', type: ' + type)
+
     dispatch(addChatMessage(peerId, message))
 
     const data: any = {
@@ -49,5 +54,11 @@ export const sendMessage:
         data.file = additionalData?.imageData ? undefined : undefined
     }
 
-    await PeerConnection.sendConnection(peerId, data)
+    try {
+        await PeerConnection.sendConnection(peerId, data)
+        log.debug('Message sent successfully to peer: ' + peerId)
+    } catch (err) {
+        log.error('Failed to send message to peer: ' + peerId, err)
+        throw err
+    }
 })

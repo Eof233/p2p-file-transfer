@@ -30,9 +30,21 @@ export interface Data {
 let peer: Peer | undefined
 let connectionMap: Map<string, DataConnection> = new Map<string, DataConnection>()
 let incomingConnectionCallback: ((conn: DataConnection) => void) | undefined
+let reconnectAttempts = 0
+const MAX_RECONNECT_ATTEMPTS = 5
+let reconnectTimeout: ReturnType<typeof setTimeout> | undefined
 
 // Connection timeout in milliseconds
-const CONNECTION_TIMEOUT = 15000
+const CONNECTION_TIMEOUT = 30000
+
+// ICE server configuration for NAT traversal
+const ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+]
 
 export const PeerConnection = {
     getPeer: () => peer,
@@ -40,14 +52,48 @@ export const PeerConnection = {
 
     startPeerSession: () => new Promise<string>((resolve, reject) => {
         log.info('Starting peer session')
+        reconnectAttempts = 0
         try {
-            peer = new Peer()
+            peer = new Peer({
+                config: {
+                    iceServers: ICE_SERVERS,
+                    iceTransportPolicy: 'all',
+                },
+                debug: 1,
+            })
             peer.on('open', (id) => {
                 log.debug('Peer session started with ID: ' + id)
+                reconnectAttempts = 0
                 resolve(id)
             }).on('error', (err) => {
                 log.error('Peer session error', err)
                 reject(err)
+            }).on('disconnected', () => {
+                log.warn('Disconnected from signaling server')
+                // Attempt to reconnect
+                if (peer && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    reconnectAttempts++
+                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 10000)
+                    log.info(`Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`)
+                    if (reconnectTimeout) clearTimeout(reconnectTimeout)
+                    reconnectTimeout = setTimeout(() => {
+                        if (peer && !peer.destroyed) {
+                            try {
+                                peer.reconnect()
+                            } catch (e) {
+                                log.error('Reconnect failed', e)
+                            }
+                        }
+                    }, delay)
+                } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                    log.error('Max reconnect attempts reached')
+                }
+            }).on('close', () => {
+                log.info('Peer connection closed')
+                if (reconnectTimeout) {
+                    clearTimeout(reconnectTimeout)
+                    reconnectTimeout = undefined
+                }
             })
 
             // Set up incoming connection handler
@@ -89,6 +135,11 @@ export const PeerConnection = {
     closePeerSession: () => new Promise<void>((resolve, reject) => {
         log.info('Closing peer session')
         try {
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout)
+                reconnectTimeout = undefined
+            }
+            reconnectAttempts = 0
             if (peer) {
                 // Close all connections
                 connectionMap.forEach((conn) => {
@@ -223,7 +274,13 @@ export const PeerConnection = {
         try {
             let conn = connectionMap.get(id)
             if (conn) {
+                if (!conn.open) {
+                    log.error('Cannot send: connection not open for peer: ' + id)
+                    reject(new Error("Connection not open"))
+                    return
+                }
                 conn.send(data)
+                log.debug('Data sent successfully to peer: ' + id + ', type: ' + data.dataType)
                 resolve()
             } else {
                 reject(new Error("Connection not found"))
@@ -235,7 +292,9 @@ export const PeerConnection = {
     }),
 
     onConnectionReceiveData: (id: string, callback: (f: Data) => void) => {
+        log.debug('Setting up data handler for peer: ' + id)
         if (!connectionMap.has(id)) {
+            log.warn('Cannot set up data handler: connection not found for peer: ' + id)
             return
         }
         let conn = connectionMap.get(id)
@@ -245,6 +304,7 @@ export const PeerConnection = {
                 log.debug('Received data from peer: ' + id + ', type: ' + data.dataType)
                 callback(data)
             })
+            log.debug('Data handler registered for peer: ' + id)
         }
     },
 
