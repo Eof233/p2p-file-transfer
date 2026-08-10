@@ -7,6 +7,9 @@ import {
     cancelFileTransfer,
     fileTransferError,
 } from '../store/file/fileActions'
+import { createLogger } from '../services/logService'
+
+const log = createLogger('useFileTransfer')
 
 export const useFileTransfer = () => {
     const dispatch = useAppDispatch()
@@ -32,8 +35,11 @@ export const useFileTransfer = () => {
                 throw new Error('No peer selected')
             }
 
+            log.info('Sending file: ' + file.name + ', size: ' + file.size + ' bytes')
+
             if (file.size > maxFileSize) {
                 const id = crypto.randomUUID()
+                log.warn('File size exceeds maximum: ' + file.name + ', size: ' + file.size + ', max: ' + maxFileSize)
                 dispatch(
                     fileTransferError(
                         id,
@@ -50,6 +56,7 @@ export const useFileTransfer = () => {
 
     const acceptFile = useCallback(
         (transferId: string) => {
+            log.info('Accepting file transfer: ' + transferId)
             dispatch(acceptFileTransfer(transferId))
         },
         [dispatch],
@@ -57,6 +64,7 @@ export const useFileTransfer = () => {
 
     const cancelTransfer = useCallback(
         (transferId: string) => {
+            log.warn('Cancelling file transfer: ' + transferId)
             dispatch(cancelFileTransfer(transferId))
         },
         [dispatch],

@@ -2,6 +2,9 @@ import { useCallback } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
 import { ChatMessage } from '../store/chat/chatTypes'
 import { sendMessage, clearChatMessages } from '../store/chat/chatActions'
+import { createLogger } from '../services/logService'
+
+const log = createLogger('useChat')
 
 export const useChat = (peerId?: string) => {
     const dispatch = useAppDispatch()
@@ -20,6 +23,7 @@ export const useChat = (peerId?: string) => {
     const sendChatMessage = useCallback(
         (content: string, type: 'text' | 'image' | 'file' = 'text', additionalData?: Partial<ChatMessage>) => {
             if (!peerId) return
+            log.debug('Sending message, type: ' + type + ', to peer: ' + peerId)
             dispatch(sendMessage(peerId, content, type, additionalData) as any)
         },
         [peerId, dispatch],
@@ -27,6 +31,7 @@ export const useChat = (peerId?: string) => {
 
     const clearMessages = useCallback(() => {
         if (!peerId) return
+        log.debug('Clearing messages for peer: ' + peerId)
         dispatch(clearChatMessages(peerId))
     }, [peerId, dispatch])
 

@@ -1,4 +1,7 @@
 import Peer, { DataConnection, PeerErrorType, PeerError } from "peerjs";
+import { createLogger } from '../services/logService'
+
+const log = createLogger('Peer')
 
 export enum DataType {
     FILE = 'FILE',
@@ -33,31 +36,33 @@ export const PeerConnection = {
     getConnectionMap: () => connectionMap,
 
     startPeerSession: () => new Promise<string>((resolve, reject) => {
+        log.info('Starting peer session')
         try {
             peer = new Peer()
             peer.on('open', (id) => {
-                console.log('My ID: ' + id)
+                log.debug('Peer session started with ID: ' + id)
                 resolve(id)
             }).on('error', (err) => {
-                console.log(err)
+                log.error('Peer session error', err)
                 reject(err)
             })
 
             // Set up incoming connection handler
             peer.on('connection', (conn) => {
-                console.log("Incoming connection: " + conn.peer)
+                log.info('Incoming connection: ' + conn.peer)
                 connectionMap.set(conn.peer, conn)
                 if (incomingConnectionCallback) {
                     incomingConnectionCallback(conn)
                 }
             })
         } catch (err) {
-            console.log(err)
+            log.error('Failed to start peer session', err)
             reject(err)
         }
     }),
 
     closePeerSession: () => new Promise<void>((resolve, reject) => {
+        log.info('Closing peer session')
         try {
             if (peer) {
                 // Close all connections
@@ -70,32 +75,36 @@ export const PeerConnection = {
             }
             resolve()
         } catch (err) {
-            console.log(err)
+            log.error('Failed to close peer session', err)
             reject(err)
         }
     }),
 
     connectPeer: (id: string) => new Promise<void>((resolve, reject) => {
+        log.info('Connecting to peer: ' + id)
         if (!peer) {
+            log.error('Cannot connect: peer session not started')
             reject(new Error("Peer doesn't start yet"))
             return
         }
         if (connectionMap.has(id)) {
+            log.warn('Connection already exists for peer: ' + id)
             reject(new Error("Connection existed"))
             return
         }
         try {
             let conn = peer.connect(id, { reliable: true })
             if (!conn) {
+                log.error('Failed to create connection to peer: ' + id)
                 reject(new Error("Connection can't be established"))
             } else {
                 conn.on('open', function () {
-                    console.log("Connect to: " + id)
+                    log.debug('Successfully connected to peer: ' + id)
                     connectionMap.set(id, conn)
                     peer?.removeListener('error', handlePeerError)
                     resolve()
                 }).on('error', function (err) {
-                    console.log(err)
+                    log.error('Connection error for peer: ' + id, err)
                     peer?.removeListener('error', handlePeerError)
                     reject(err)
                 })
@@ -104,17 +113,22 @@ export const PeerConnection = {
                     if (err.type === 'peer-unavailable') {
                         const messageSplit = err.message.split(' ')
                         const peerId = messageSplit[messageSplit.length - 1]
-                        if (id === peerId) reject(err)
+                        if (id === peerId) {
+                            log.error('Peer unavailable: ' + peerId)
+                            reject(err)
+                        }
                     }
                 }
                 peer.on('error', handlePeerError);
             }
         } catch (err) {
+            log.error('Failed to connect to peer: ' + id, err)
             reject(err)
         }
     }),
 
     onIncomingConnection: (callback: (conn: DataConnection) => void) => {
+        log.info('Registering incoming connection handler')
         incomingConnectionCallback = callback
     },
 
@@ -125,7 +139,7 @@ export const PeerConnection = {
         let conn = connectionMap.get(id)
         if (conn) {
             conn.on('close', function () {
-                console.log("Connection closed: " + id)
+                log.info('Connection closed: ' + id)
                 connectionMap.delete(id)
                 callback()
             })
@@ -133,7 +147,9 @@ export const PeerConnection = {
     },
 
     sendConnection: (id: string, data: Data): Promise<void> => new Promise((resolve, reject) => {
+        log.debug('Sending data to peer: ' + id + ', type: ' + data.dataType)
         if (!connectionMap.has(id)) {
+            log.error('Cannot send: connection not found for peer: ' + id)
             reject(new Error("Connection didn't exist"))
             return
         }
@@ -146,6 +162,7 @@ export const PeerConnection = {
                 reject(new Error("Connection not found"))
             }
         } catch (err) {
+            log.error('Failed to send data to peer: ' + id, err)
             reject(err)
         }
     }),
@@ -157,14 +174,15 @@ export const PeerConnection = {
         let conn = connectionMap.get(id)
         if (conn) {
             conn.on('data', function (receivedData) {
-                console.log("Receiving data from " + id)
                 let data = receivedData as Data
+                log.debug('Received data from peer: ' + id + ', type: ' + data.dataType)
                 callback(data)
             })
         }
     },
 
     disconnectPeer: (id: string) => {
+        log.info('Disconnecting peer: ' + id)
         if (connectionMap.has(id)) {
             const conn = connectionMap.get(id)
             if (conn) {

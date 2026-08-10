@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-08-10
+
+### Logging System
+
+#### Core Features
+- [x] Unified log service (src/services/logService.ts)
+- [x] Log levels: DEBUG, INFO, WARN, ERROR, FATAL
+- [x] Colored console output
+- [x] localStorage persistence with rotation
+- [x] Performance timing helper
+
+#### Log Viewer
+- [x] Filter by log level
+- [x] Filter by module
+- [x] Export as JSON/CSV
+- [x] Clear logs
+- [x] Auto-refresh
+
+#### Error Tracking
+- [x] Global error handler
+- [x] Unhandled promise rejection handler
+
+---
+
 ## [1.0.2] - 2026-08-10
 
 ### 🎨 UI Fixes & Image Preview

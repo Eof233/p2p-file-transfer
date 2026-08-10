@@ -1,3 +1,7 @@
+import { createLogger } from './logService'
+
+const log = createLogger('Crypto')
+
 export interface EncryptedData {
     iv: Uint8Array<ArrayBuffer>
     data: ArrayBuffer
@@ -12,6 +16,7 @@ export const CryptoService = {
     // RSA Key Management
 
     generateKeyPair: async (): Promise<RSAKeyPair> => {
+        log.debug('Generating RSA key pair')
         const keyPair = await window.crypto.subtle.generateKey(
             {
                 name: 'RSA-OAEP',
@@ -29,6 +34,7 @@ export const CryptoService = {
     },
 
     exportPublicKey: async (key: CryptoKey): Promise<string> => {
+        log.debug('Exporting public key')
         const spkiBuffer = await window.crypto.subtle.exportKey('spki', key)
         const bytes = new Uint8Array(spkiBuffer)
         let binary = ''
@@ -39,6 +45,7 @@ export const CryptoService = {
     },
 
     importPublicKey: async (keyData: string): Promise<CryptoKey> => {
+        log.debug('Importing public key')
         const binary = atob(keyData)
         const bytes = new Uint8Array(binary.length)
         for (let i = 0; i < binary.length; i++) {
@@ -68,6 +75,7 @@ export const CryptoService = {
     // AES Session Key Management
 
     generateSessionKey: async (): Promise<CryptoKey> => {
+        log.debug('Generating AES session key')
         return window.crypto.subtle.generateKey(
             {
                 name: 'AES-GCM',
@@ -79,6 +87,7 @@ export const CryptoService = {
     },
 
     encryptSessionKey: async (sessionKey: CryptoKey, publicKey: CryptoKey): Promise<ArrayBuffer> => {
+        log.debug('Encrypting session key with RSA public key')
         const rawKey = await window.crypto.subtle.exportKey('raw', sessionKey)
         return window.crypto.subtle.encrypt(
             {
@@ -90,6 +99,7 @@ export const CryptoService = {
     },
 
     decryptSessionKey: async (encryptedKey: ArrayBuffer, privateKey: CryptoKey): Promise<CryptoKey> => {
+        log.debug('Decrypting session key with RSA private key')
         const rawKey = await window.crypto.subtle.decrypt(
             {
                 name: 'RSA-OAEP',
@@ -112,6 +122,7 @@ export const CryptoService = {
     // Data Encryption/Decryption
 
     encrypt: async (data: ArrayBuffer, sessionKey: CryptoKey): Promise<EncryptedData> => {
+        log.debug('Encrypting data, size: ' + data.byteLength + ' bytes')
         const iv = new Uint8Array(12)
         window.crypto.getRandomValues(iv)
         const encryptedBuffer = await window.crypto.subtle.encrypt(
@@ -129,6 +140,7 @@ export const CryptoService = {
     },
 
     decrypt: async (encryptedData: EncryptedData, sessionKey: CryptoKey): Promise<ArrayBuffer> => {
+        log.debug('Decrypting data, size: ' + encryptedData.data.byteLength + ' bytes')
         return window.crypto.subtle.decrypt(
             {
                 name: 'AES-GCM',

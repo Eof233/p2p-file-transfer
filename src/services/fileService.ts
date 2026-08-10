@@ -1,3 +1,7 @@
+import { createLogger } from './logService'
+
+const log = createLogger('File')
+
 export interface FileChunk {
     index: number
     total: number
@@ -15,6 +19,7 @@ export const FileService = {
     chunkFile: async (file: File, transferId: string, chunkSize: number = DEFAULT_CHUNK_SIZE): Promise<FileChunk[]> => {
         const chunks: FileChunk[] = []
         const totalChunks = Math.ceil(file.size / chunkSize)
+        log.debug('Chunking file: ' + file.name + ', size: ' + file.size + ', chunks: ' + totalChunks)
 
         for (let i = 0; i < totalChunks; i++) {
             const start = i * chunkSize
@@ -35,6 +40,7 @@ export const FileService = {
 
     // Reassemble chunks into a Blob
     reassembleChunks: (chunks: FileChunk[]): Blob => {
+        log.debug('Reassembling chunks, count: ' + chunks.length)
         // Sort by index, combine data
         const sorted = [...chunks].sort((a, b) => a.index - b.index)
         return new Blob(sorted.map(c => c.data), { type: sorted[0].fileType })
@@ -42,7 +48,9 @@ export const FileService = {
 
     // Validate file size
     validateFileSize: (file: File, maxSize: number): boolean => {
-        return file.size <= maxSize
+        const valid = file.size <= maxSize
+        log.debug('Validating file size: ' + file.name + ', size: ' + file.size + ', max: ' + maxSize + ', valid: ' + valid)
+        return valid
     },
 
     // Validate file type

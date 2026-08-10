@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Dialog } from '../ui/Dialog'
 import { useAppSelector, useAppDispatch } from '../../store/hooks'
 import { SettingsActionType } from '../../store/settings/settingsTypes'
 import { useI18n } from '../../hooks/useI18n'
 import { useTheme } from '../../hooks/useTheme'
 import { Language } from '../../utils/i18n'
+import { LogViewer } from './LogViewer'
 
 interface SettingsDialogProps {
     open: boolean
@@ -16,6 +17,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onOpenChan
     const settings = useAppSelector((state) => state.settings)
     const { t, language, setLanguage } = useI18n()
     const { theme, setTheme } = useTheme()
+    const [logViewerOpen, setLogViewerOpen] = useState(false)
 
     const handleEncryptionToggle = () => {
         dispatch({ type: SettingsActionType.SETTINGS_ENCRYPTION_TOGGLE })
@@ -120,8 +122,17 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onOpenChan
                         <p>P2P Messenger v1.0.0</p>
                         <p className="mt-1">{t.secureP2P}</p>
                     </div>
+                    <div className="mt-3 flex justify-center">
+                        <button
+                            onClick={() => setLogViewerOpen(true)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                        >
+                            {t.logViewer}
+                        </button>
+                    </div>
                 </div>
             </div>
+            <LogViewer open={logViewerOpen} onClose={() => setLogViewerOpen(false)} />
         </Dialog>
     )
 }

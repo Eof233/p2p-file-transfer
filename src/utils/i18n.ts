@@ -77,6 +77,15 @@ export interface Translations {
     connectionAccepted: string
     connectionRejected: string
 
+    // Log Viewer
+    logViewer: string
+    clearLogs: string
+    level: string
+    module: string
+    entries: string
+    noLogs: string
+    all: string
+
     // Common
     copied: string
     connectionClosed: string
@@ -158,6 +167,14 @@ const en: Translations = {
     connectionAccepted: 'Connection accepted',
     connectionRejected: 'Connection rejected',
 
+    logViewer: 'Log Viewer',
+    clearLogs: 'Clear Logs',
+    level: 'Level',
+    module: 'Module',
+    entries: 'entries',
+    noLogs: 'No logs',
+    all: 'All',
+
     copied: 'Copied',
     connectionClosed: 'Connection closed',
     incomingConnection: 'Incoming connection',
@@ -237,6 +254,14 @@ const zh: Translations = {
     connectionRequestDesc: '想要与你建立连接',
     connectionAccepted: '已接受连接',
     connectionRejected: '已拒绝连接',
+
+    logViewer: '日志查看器',
+    clearLogs: '清除日志',
+    level: '级别',
+    module: '模块',
+    entries: '条记录',
+    noLogs: '暂无日志',
+    all: '全部',
 
     copied: '已复制',
     connectionClosed: '连接已关闭',

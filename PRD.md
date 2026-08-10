@@ -68,6 +68,19 @@ A secure, peer-to-peer communication tool that enables direct text messaging, fi
 | **Key Verification** | Manual fingerprint verification option | P1 |
 | **Encrypted Local Storage** | Encrypt chat history stored locally | P2 |
 
+### 2.6 Logging System
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| **Unified Log Service** | Centralized logging service for all modules | P0 |
+| **Log Levels** | DEBUG, INFO, WARN, ERROR, FATAL levels | P0 |
+| **Console Output** | Formatted console output with colors | P0 |
+| **Log Persistence** | Store logs in localStorage with rotation | P1 |
+| **Log Viewer** | UI panel to view and filter logs | P1 |
+| **Export Logs** | Export logs as JSON/CSV file | P2 |
+| **Performance Metrics** | Track operation timing and performance | P2 |
+| **Error Tracking** | Capture and report unhandled errors | P1 |
+
 ---
 
 ## 3. Technical Architecture
@@ -322,7 +335,8 @@ p2p-messenger/
 │   │   ├── peerService.ts         # PeerJS wrapper
 │   │   ├── cryptoService.ts       # AES + RSA encryption
 │   │   ├── fileService.ts         # File chunking, compression
-│   │   └── imageService.ts        # Image processing
+│   │   ├── imageService.ts        # Image processing
+│   │   └── logService.ts          # Unified logging system
 │   ├── hooks/
 │   │   ├── usePeer.ts
 │   │   ├── useChat.ts

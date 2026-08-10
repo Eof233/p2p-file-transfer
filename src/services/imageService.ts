@@ -1,6 +1,11 @@
+import { createLogger } from './logService'
+
+const log = createLogger('Image')
+
 export const ImageService = {
     // Compress image for sending
     compressImage: async (file: File, maxWidth: number = 1920, quality: number = 0.8): Promise<File> => {
+        log.debug('Compressing image: ' + file.name + ', original size: ' + file.size + ' bytes')
         return new Promise((resolve, reject) => {
             const img = new Image()
             const url = URL.createObjectURL(file)
@@ -26,7 +31,9 @@ export const ImageService = {
                 canvas.toBlob(
                     (blob) => {
                         if (!blob) { reject(new Error('Failed to compress image')); return }
-                        resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }))
+                        const compressed = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() })
+                        log.debug('Image compressed: ' + file.name + ', compressed size: ' + compressed.size + ' bytes')
+                        resolve(compressed)
                     },
                     'image/jpeg',
                     quality
@@ -44,6 +51,7 @@ export const ImageService = {
 
     // Convert file to base64 for inline display
     fileToBase64: (file: File): Promise<string> => {
+        log.debug('Converting file to base64: ' + file.name)
         return new Promise((resolve, reject) => {
             const reader = new FileReader()
             reader.onload = () => resolve(reader.result as string)
@@ -60,11 +68,13 @@ export const ImageService = {
 
     // Get image dimensions
     getImageDimensions: (file: File): Promise<{ width: number; height: number }> => {
+        log.debug('Getting image dimensions: ' + file.name)
         return new Promise((resolve, reject) => {
             const img = new Image()
             const url = URL.createObjectURL(file)
             img.onload = () => {
                 URL.revokeObjectURL(url)
+                log.debug('Image dimensions: ' + img.width + 'x' + img.height)
                 resolve({ width: img.width, height: img.height })
             }
             img.onerror = () => {

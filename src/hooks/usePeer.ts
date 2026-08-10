@@ -2,6 +2,9 @@ import { useCallback } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
 import { startPeer, stopPeerSession } from '../store/peer/peerActions'
 import * as connectionAction from '../store/connection/connectionActions'
+import { createLogger } from '../services/logService'
+
+const log = createLogger('usePeer')
 
 export const usePeer = () => {
     const dispatch = useAppDispatch()
@@ -9,15 +12,18 @@ export const usePeer = () => {
     const connection = useAppSelector((state) => state.connection)
 
     const startSession = useCallback(() => {
+        log.info('Starting peer session')
         dispatch(startPeer() as any)
     }, [dispatch])
 
     const stopSession = useCallback(() => {
+        log.info('Stopping peer session')
         dispatch(stopPeerSession())
     }, [dispatch])
 
     const connectToPeer = useCallback(
         (id: string) => {
+            log.info('Connecting to peer: ' + id)
             dispatch(connectionAction.connectPeer(id) as any)
         },
         [dispatch],

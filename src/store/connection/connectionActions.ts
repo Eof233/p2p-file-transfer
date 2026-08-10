@@ -1,6 +1,9 @@
 import { ConnectionActionType } from "./connectionTypes";
 import { Dispatch } from "redux";
 import { PeerConnection } from "../../helpers/peer";
+import { createLogger } from "../../services/logService";
+
+const log = createLogger('ConnectionActions')
 
 export const changeConnectionInput = (id: string) => ({
     type: ConnectionActionType.CONNECTION_INPUT_CHANGE, id
@@ -24,21 +27,23 @@ export const selectItem = (id: string) => ({
 
 export const connectPeer: (id: string) => (dispatch: Dispatch) => Promise<void>
     = (id: string) => (async (dispatch) => {
+        log.info('Connecting to peer: ' + id)
         dispatch(setLoading(true))
         try {
             await PeerConnection.connectPeer(id)
             PeerConnection.onConnectionDisconnected(id, () => {
-                console.log("Connection closed: " + id)
+                log.info('Connection closed: ' + id)
                 dispatch(removeConnectionList(id))
             })
             PeerConnection.onConnectionReceiveData(id, (data) => {
-                console.log("Receiving data from " + id, data.dataType)
+                log.debug('Receiving data from peer: ' + id + ', type: ' + data.dataType)
                 // Data handling is done in the components via hooks
             })
+            log.debug('Successfully connected to peer: ' + id)
             dispatch(addConnectionList(id))
             dispatch(setLoading(false))
         } catch (err) {
+            log.error('Failed to connect to peer: ' + id, err)
             dispatch(setLoading(false))
-            console.log(err)
         }
     })
