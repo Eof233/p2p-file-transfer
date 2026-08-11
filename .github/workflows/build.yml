@@ -123,10 +123,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
+          echo "Creating release: $tag"
+          echo "Files to upload:"
+          find release_assets -type f
+          echo "---"
+          # Create release first, then upload assets
           gh release create "$tag" \
             --repo "$GITHUB_REPOSITORY" \
             --title "P2P Messenger $tag" \
             --notes "Download and install the package for your platform below." \
             --draft \
             --target "${{ github.sha }}" \
-            $(find release_assets -type f)
+            $(find release_assets -type f) \
+            2>&1 || echo "Release creation failed with exit code $?"
