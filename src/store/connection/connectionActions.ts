@@ -41,6 +41,10 @@ export const selectItem = (id: string) => ({
     type: ConnectionActionType.CONNECTION_ITEM_SELECT, id
 })
 
+export const resetConnection = () => ({
+    type: ConnectionActionType.CONNECTION_RESET
+})
+
 /**
  * Processes received data from a peer and dispatches appropriate Redux actions.
  * Handles chat messages, typing indicators, and other data types.
@@ -168,8 +172,8 @@ const handleReceivedData = (peerId: string, data: Data, dispatch: Dispatch) => {
                 log.error('Failed to trigger file download', e)
             }
 
-            // Mark transfer as complete
-            dispatch(fileTransferComplete(transferId!))
+            // Mark transfer as complete and store blob for download
+            dispatch(fileTransferComplete(transferId!, blob))
 
             // Clean up
             pendingFileTransfers.delete(transferId!)

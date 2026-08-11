@@ -26,14 +26,14 @@ export const FileReducer: Reducer<FileState> = (state = initialState, action) =>
             }
         }
         case FileActionType.FILE_TRANSFER_COMPLETE: {
-            const {id} = action
+            const {id, blob} = action
             const existing = state.transfers[id]
             if (!existing) return state
             return {
                 ...state,
                 transfers: {
                     ...state.transfers,
-                    [id]: {...existing, status: 'completed', progress: 100}
+                    [id]: {...existing, status: 'completed', progress: 100, blob}
                 }
             }
         }
@@ -69,6 +69,9 @@ export const FileReducer: Reducer<FileState> = (state = initialState, action) =>
         case FileActionType.FILE_PENDING_REMOVE: {
             const {id} = action
             return {...state, pendingFiles: state.pendingFiles.filter(f => f.id !== id)}
+        }
+        case FileActionType.FILE_RESET: {
+            return {...initialState}
         }
         default:
             return state

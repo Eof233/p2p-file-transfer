@@ -98,6 +98,9 @@ export const useFileTransfer = () => {
                     const progress = Math.round((bytesSent / file.size) * 100)
 
                     dispatch(fileTransferProgress(transferId, progress, speed))
+
+                    // Yield to allow React to process the progress update and re-render
+                    await new Promise<void>((resolve) => setTimeout(resolve, 0))
                 }
 
                 dispatch(fileTransferComplete(transferId))

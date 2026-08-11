@@ -65,6 +65,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, sh
                             speed={transfer?.speed}
                             isOwn={isOwn}
                             status={transfer?.status}
+                            blob={transfer?.blob}
                         />
                     )}
                     {message.type === 'text' && (

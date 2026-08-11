@@ -6,6 +6,7 @@ export enum FileActionType {
     FILE_TRANSFER_ERROR = 'FILE_TRANSFER_ERROR',
     FILE_PENDING_ADD = 'FILE_PENDING_ADD',
     FILE_PENDING_REMOVE = 'FILE_PENDING_REMOVE',
+    FILE_RESET = 'FILE_RESET',
 }
 
 export interface FileTransfer {
@@ -19,6 +20,7 @@ export interface FileTransfer {
     readonly status: 'pending' | 'transferring' | 'completed' | 'cancelled' | 'error'
     readonly speed?: number  // bytes per second
     readonly error?: string
+    readonly blob?: Blob  // received file blob for download
 }
 
 export interface PendingFile {

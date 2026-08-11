@@ -11,6 +11,7 @@ interface FileMessageProps {
     speed?: number  // bytes per second
     isOwn: boolean
     status?: 'pending' | 'transferring' | 'completed' | 'cancelled' | 'error'
+    blob?: Blob  // received file blob for download
 }
 
 const getFileIcon = (fileType: string) => {
@@ -61,12 +62,24 @@ const getFileIcon = (fileType: string) => {
 }
 
 export const FileMessage: React.FC<FileMessageProps> = ({
-    fileName, fileSize, fileType, progress, speed, isOwn, status
+    fileName, fileSize, fileType, progress, speed, isOwn, status, blob
 }) => {
     const { t } = useI18n()
     const isTransferring = status === 'transferring'
     const isComplete = status === 'completed'
     const isError = status === 'error'
+
+    const handleDownload = () => {
+        if (!blob) return
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = fileName
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
 
     return (
         <div className="flex items-center gap-3 p-2 min-w-[240px]">
@@ -88,11 +101,26 @@ export const FileMessage: React.FC<FileMessageProps> = ({
                     <Progress value={progress} className="mt-1.5" showLabel />
                 )}
                 {isComplete && (
-                    <div className="flex items-center gap-1 mt-1 text-[var(--success)]">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        <span className="text-xs">{isOwn ? t.fileSent : t.fileReceived}</span>
+                    <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-1 text-[var(--success)]">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            <span className="text-xs">{isOwn ? t.fileSent : t.fileReceived}</span>
+                        </div>
+                        {!isOwn && blob && (
+                            <button
+                                onClick={handleDownload}
+                                className="flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                                {t.download}
+                            </button>
+                        )}
                     </div>
                 )}
                 {isError && (

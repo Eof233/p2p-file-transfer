@@ -9,8 +9,8 @@ export const fileTransferProgress = (id: string, progress: number, speed?: numbe
     type: FileActionType.FILE_TRANSFER_PROGRESS, id, progress, speed
 })
 
-export const fileTransferComplete = (id: string) => ({
-    type: FileActionType.FILE_TRANSFER_COMPLETE, id
+export const fileTransferComplete = (id: string, blob?: Blob) => ({
+    type: FileActionType.FILE_TRANSFER_COMPLETE, id, blob
 })
 
 export const fileTransferCancel = (id: string) => ({
@@ -27,6 +27,10 @@ export const filePendingAdd = (id: string, fileName: string, fileSize: number, f
 
 export const filePendingRemove = (id: string) => ({
     type: FileActionType.FILE_PENDING_REMOVE, id
+})
+
+export const resetFileTransfers = () => ({
+    type: FileActionType.FILE_RESET
 })
 
 export const initiateFileTransfer: (peerId: string, file: File) => (dispatch: Dispatch) => void

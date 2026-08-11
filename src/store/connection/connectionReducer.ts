@@ -43,6 +43,9 @@ export const ConnectionReducer: Reducer<ConnectionState> = (state = initialState
         case ConnectionActionType.CONNECTION_ERROR:
             return { ...state, error: action.error }
 
+        case ConnectionActionType.CONNECTION_RESET:
+            return { ...initialState }
+
         default:
             return state
     }

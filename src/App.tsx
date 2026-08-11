@@ -7,6 +7,7 @@ import { useAppSelector, useAppDispatch } from './store/hooks'
 import { startPeer, stopPeerSession } from './store/peer/peerActions'
 import * as connectionAction from './store/connection/connectionActions'
 import * as connectionRequestAction from './store/connection/connectionRequestActions'
+import { resetFileTransfers } from './store/file/fileActions'
 import { DataType, PeerConnection } from './helpers/peer'
 import { loadSettings } from './store/settings/settingsActions'
 import './styles/globals.css'
@@ -32,8 +33,14 @@ export const App: React.FC = () => {
     }
 
     const handleStopSession = async () => {
-        await PeerConnection.closePeerSession()
+        try {
+            await PeerConnection.closePeerSession()
+        } catch (e) {
+            // Continue with state cleanup even if close fails
+        }
         dispatch(stopPeerSession())
+        dispatch(connectionAction.resetConnection())
+        dispatch(resetFileTransfers())
     }
 
     const handleConnectPeer = (id: string) => {
