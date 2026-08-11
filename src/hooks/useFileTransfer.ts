@@ -2,19 +2,26 @@ import { useCallback } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
 import { FileTransfer, PendingFile } from '../store/file/fileTypes'
 import {
-    initiateFileTransfer,
+    fileTransferStart,
+    fileTransferProgress,
+    fileTransferComplete,
+    fileTransferError,
     acceptFileTransfer,
     cancelFileTransfer,
-    fileTransferError,
 } from '../store/file/fileActions'
+import { addChatMessage } from '../store/chat/chatActions'
+import { ChatMessage } from '../store/chat/chatTypes'
+import { DataType, PeerConnection } from '../helpers/peer'
+import { FileService } from '../services/fileService'
 import { createLogger } from '../services/logService'
 
 const log = createLogger('useFileTransfer')
 
+const CHUNK_SIZE = 16 * 1024 // 16KB per chunk
+
 export const useFileTransfer = () => {
     const dispatch = useAppDispatch()
 
-    // file and settings slices are not yet registered in the store; cast to access the expected shape
     const transfers = useAppSelector(
         (state: any) => (state.file?.transfers as Record<string, FileTransfer> | undefined) ?? {},
     )
@@ -24,10 +31,7 @@ export const useFileTransfer = () => {
     )
 
     const selectedPeerId = useAppSelector((state) => state.connection.selectedId)
-
-    const maxFileSize = useAppSelector(
-        (state: any) => (state.settings?.maxFileSize as number | undefined) ?? 100 * 1024 * 1024,
-    )
+    const myId = useAppSelector((state) => state.peer.id)
 
     const sendFile = useCallback(
         async (file: File) => {
@@ -37,21 +41,73 @@ export const useFileTransfer = () => {
 
             log.info('Sending file: ' + file.name + ', size: ' + file.size + ' bytes')
 
-            if (file.size > maxFileSize) {
-                const id = crypto.randomUUID()
-                log.warn('File size exceeds maximum: ' + file.name + ', size: ' + file.size + ', max: ' + maxFileSize)
-                dispatch(
-                    fileTransferError(
-                        id,
-                        `File size exceeds the maximum allowed size of ${Math.round(maxFileSize / (1024 * 1024))}MB`,
-                    ),
-                )
-                return
-            }
+            const transferId = crypto.randomUUID()
 
-            dispatch(initiateFileTransfer(selectedPeerId, file) as any)
+            // Create transfer record with 'transferring' status
+            const transfer: FileTransfer = {
+                id: transferId,
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                peerId: selectedPeerId,
+                direction: 'send',
+                progress: 0,
+                status: 'transferring',
+            }
+            dispatch(fileTransferStart(transfer))
+
+            // Add a chat message of type 'file' so it shows in the chat
+            const chatMessage: ChatMessage = {
+                id: crypto.randomUUID(),
+                senderId: myId || '',
+                content: '',
+                timestamp: Date.now(),
+                type: 'file',
+                status: 'sent',
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                transferId,
+            }
+            dispatch(addChatMessage(selectedPeerId, chatMessage))
+
+            // Chunk and send the file
+            try {
+                const chunks = await FileService.chunkFile(file, transferId, CHUNK_SIZE)
+                const startTime = Date.now()
+                let bytesSent = 0
+
+                for (let i = 0; i < chunks.length; i++) {
+                    const chunk = chunks[i]
+                    const blob = new Blob([chunk.data], { type: file.type })
+
+                    await PeerConnection.sendConnection(selectedPeerId, {
+                        dataType: DataType.FILE,
+                        transferId,
+                        chunkIndex: i,
+                        totalChunks: chunks.length,
+                        fileName: file.name,
+                        fileSize: file.size,
+                        fileType: file.type,
+                        file: blob,
+                    })
+
+                    bytesSent += chunk.data.byteLength
+                    const elapsed = Date.now() - startTime
+                    const speed = FileService.calculateSpeed(bytesSent, elapsed)
+                    const progress = Math.round((bytesSent / file.size) * 100)
+
+                    dispatch(fileTransferProgress(transferId, progress, speed))
+                }
+
+                dispatch(fileTransferComplete(transferId))
+                log.info('File sent successfully: ' + file.name)
+            } catch (err: any) {
+                log.error('File transfer failed', err)
+                dispatch(fileTransferError(transferId, err.message || 'Transfer failed'))
+            }
         },
-        [selectedPeerId, maxFileSize, dispatch],
+        [selectedPeerId, myId, dispatch],
     )
 
     const acceptFile = useCallback(

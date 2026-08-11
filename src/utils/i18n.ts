@@ -62,6 +62,14 @@ export interface Translations {
     previewNotAvailable: string
     download: string
 
+    // File Message
+    sending: string
+    receiving: string
+    speed: string
+    progress: string
+    fileSent: string
+    fileReceived: string
+
     // Key Verification
     verifyKeys: string
     verifyKeysDesc: string
@@ -89,6 +97,12 @@ export interface Translations {
     // Common
     copied: string
     connectionClosed: string
+    excellent: string
+    good: string
+    poor: string
+    unknown: string
+    latency: string
+    connectionQuality: string
     incomingConnection: string
     pleaseEnterId: string
     pleaseSelectConnection: string
@@ -154,6 +168,13 @@ const en: Translations = {
     previewNotAvailable: 'Preview not available',
     download: 'Download',
 
+    sending: 'Sending...',
+    receiving: 'Receiving...',
+    speed: 'Speed',
+    progress: 'Progress',
+    fileSent: 'File sent',
+    fileReceived: 'File received',
+
     verifyKeys: 'Verify Keys',
     verifyKeysDesc: 'Compare these fingerprints with your peer to ensure secure connection',
     yourFingerprint: 'Your Fingerprint',
@@ -177,6 +198,12 @@ const en: Translations = {
 
     copied: 'Copied',
     connectionClosed: 'Connection closed',
+    excellent: 'Excellent',
+    good: 'Good',
+    poor: 'Poor',
+    unknown: 'Unknown',
+    latency: 'Latency',
+    connectionQuality: 'Connection Quality',
     incomingConnection: 'Incoming connection',
     pleaseEnterId: 'Please enter a peer ID',
     pleaseSelectConnection: 'Please select a connection',
@@ -242,6 +269,13 @@ const zh: Translations = {
     previewNotAvailable: '无法预览',
     download: '下载',
 
+    sending: '发送中...',
+    receiving: '接收中...',
+    speed: '速度',
+    progress: '进度',
+    fileSent: '文件已发送',
+    fileReceived: '文件已接收',
+
     verifyKeys: '验证密钥',
     verifyKeysDesc: '与对方比较这些指纹以确保安全连接',
     yourFingerprint: '你的指纹',
@@ -265,6 +299,12 @@ const zh: Translations = {
 
     copied: '已复制',
     connectionClosed: '连接已关闭',
+    excellent: '优秀',
+    good: '良好',
+    poor: '较差',
+    unknown: '未知',
+    latency: '延迟',
+    connectionQuality: '连接质量',
     incomingConnection: '收到连接请求',
     pleaseEnterId: '请输入对等方 ID',
     pleaseSelectConnection: '请选择一个连接',

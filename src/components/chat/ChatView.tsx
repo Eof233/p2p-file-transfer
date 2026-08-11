@@ -5,6 +5,7 @@ import { MessageInput } from './MessageInput'
 import { TypingIndicator } from './TypingIndicator'
 import { ImagePreviewModal } from './ImagePreviewModal'
 import { KeyVerificationDialog } from '../security/KeyVerificationDialog'
+import { ConnectionInfo } from './ConnectionInfo'
 import { useChat } from '../../hooks/useChat'
 import { useFileTransfer } from '../../hooks/useFileTransfer'
 import { useEncryption } from '../../hooks/useEncryption'
@@ -110,6 +111,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
                         </svg>
                     </button>
                 </div>
+            </div>
+
+            {/* Connection Info */}
+            <div className="px-4 py-1.5 border-b border-[var(--separator)]">
+                <ConnectionInfo peerId={peerId} />
             </div>
 
             {/* Messages */}

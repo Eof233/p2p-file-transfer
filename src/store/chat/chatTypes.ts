@@ -16,6 +16,7 @@ export interface ChatMessage {
     readonly fileSize?: number
     readonly fileType?: string
     readonly imageData?: string  // base64 for inline images
+    readonly transferId?: string  // link to file transfer for progress tracking
 }
 
 export interface ChatState {

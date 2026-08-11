@@ -4,8 +4,18 @@ import { DataType, PeerConnection, Data } from "../../helpers/peer";
 import { createLogger } from "../../services/logService";
 import { addChatMessage, setChatTyping } from "../chat/chatActions";
 import { ChatMessage } from "../chat/chatTypes";
+import { fileTransferStart, fileTransferProgress, fileTransferComplete } from "../file/fileActions";
+import { FileTransfer } from "../file/fileTypes";
 
 const log = createLogger('ConnectionActions')
+
+// Module-level chunk accumulator for incoming file transfers
+interface PendingTransfer {
+    chunks: Map<number, Blob>
+    metadata: { fileName: string; fileSize: number; fileType: string; totalChunks: number }
+    peerId: string
+}
+const pendingFileTransfers: Map<string, PendingTransfer> = new Map()
 
 export const changeConnectionInput = (id: string) => ({
     type: ConnectionActionType.CONNECTION_INPUT_CHANGE, id
@@ -70,9 +80,101 @@ const handleReceivedData = (peerId: string, data: Data, dispatch: Dispatch) => {
         }
     }
 
-    if (data.dataType === DataType.FILE) {
-        log.info('Received file from peer: ' + peerId + ', name: ' + data.fileName)
-        // File handling is done via file transfer hooks
+    if (data.dataType === DataType.FILE && data.transferId) {
+        const { transferId, chunkIndex, totalChunks, fileName, fileSize, fileType, file } = data
+
+        if (!file || chunkIndex === undefined || !totalChunks) {
+            log.warn('Invalid file chunk received from peer: ' + peerId)
+            return
+        }
+
+        log.info('Received file chunk from peer: ' + peerId + ', transfer: ' + transferId + ', chunk: ' + chunkIndex + '/' + totalChunks)
+
+        // Create entry on first chunk
+        if (!pendingFileTransfers.has(transferId!)) {
+            pendingFileTransfers.set(transferId!, {
+                chunks: new Map(),
+                metadata: {
+                    fileName: fileName || 'unknown',
+                    fileSize: fileSize || 0,
+                    fileType: fileType || 'application/octet-stream',
+                    totalChunks,
+                },
+                peerId,
+            })
+
+            // Create transfer record for progress tracking
+            const transfer: FileTransfer = {
+                id: transferId!,
+                fileName: fileName || 'unknown',
+                fileSize: fileSize || 0,
+                fileType: fileType || 'application/octet-stream',
+                peerId,
+                direction: 'receive',
+                progress: 0,
+                status: 'transferring',
+            }
+            dispatch(fileTransferStart(transfer))
+        }
+
+        const entry = pendingFileTransfers.get(transferId!)!
+
+        // Store chunk (handle both Blob and ArrayBuffer)
+        const chunkBlob = file instanceof Blob ? file : new Blob([file as ArrayBuffer], { type: entry.metadata.fileType })
+        entry.chunks.set(chunkIndex, chunkBlob)
+
+        // Update progress
+        const progress = Math.round((entry.chunks.size / entry.metadata.totalChunks) * 100)
+        dispatch(fileTransferProgress(transferId!, progress))
+
+        // Check if all chunks received
+        if (entry.chunks.size === entry.metadata.totalChunks) {
+            log.info('All chunks received for transfer: ' + transferId + ', reassembling...')
+
+            // Reassemble chunks in order
+            const sortedChunks: Blob[] = []
+            for (let i = 0; i < entry.metadata.totalChunks; i++) {
+                sortedChunks.push(entry.chunks.get(i)!)
+            }
+            const blob = new Blob(sortedChunks, { type: entry.metadata.fileType })
+
+            // Create chat message for the received file
+            const chatMessage: ChatMessage = {
+                id: crypto.randomUUID(),
+                senderId: peerId,
+                content: '',
+                timestamp: Date.now(),
+                type: 'file',
+                status: 'delivered',
+                fileName: entry.metadata.fileName,
+                fileSize: entry.metadata.fileSize,
+                fileType: entry.metadata.fileType,
+                transferId: transferId!,
+            }
+            dispatch(addChatMessage(peerId, chatMessage))
+
+            // Auto-download the received file
+            try {
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = entry.metadata.fileName
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                setTimeout(() => URL.revokeObjectURL(url), 1000)
+                log.info('File download triggered: ' + entry.metadata.fileName)
+            } catch (e) {
+                log.error('Failed to trigger file download', e)
+            }
+
+            // Mark transfer as complete
+            dispatch(fileTransferComplete(transferId!))
+
+            // Clean up
+            pendingFileTransfers.delete(transferId!)
+        }
+        return
     }
 
     if (data.dataType === DataType.TYPING) {

@@ -1,7 +1,10 @@
 import React from 'react'
 import { Avatar } from '../ui/Avatar'
 import { ChatMessage } from '../../store/chat/chatTypes'
+import { FileTransfer } from '../../store/file/fileTypes'
 import { formatTime } from '../../utils/formatters'
+import { useAppSelector } from '../../store/hooks'
+import { FileMessage } from './FileMessage'
 
 interface MessageBubbleProps {
     message: ChatMessage
@@ -16,6 +19,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, sh
         delivered: '✓✓',
         read: '✓✓',
     }
+
+    // Look up file transfer progress if this message has a transferId
+    const transfer = useAppSelector((state: any) =>
+        message.transferId
+            ? (state.file?.transfers as Record<string, FileTransfer> | undefined)?.[message.transferId]
+            : undefined
+    )
 
     return (
         <div className={`flex gap-2 animate-message-in ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -46,16 +56,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, sh
                             </div>
                         </div>
                     )}
-                    {message.type === 'file' && (
-                        <div className="flex items-center gap-2 p-2 bg-[var(--overlay)] rounded-lg mb-1">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
-                            </svg>
-                            <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium truncate">{message.fileName}</div>
-                            </div>
-                        </div>
+                    {message.type === 'file' && message.fileName && (
+                        <FileMessage
+                            fileName={message.fileName}
+                            fileSize={message.fileSize || 0}
+                            fileType={message.fileType || 'application/octet-stream'}
+                            progress={transfer?.progress}
+                            speed={transfer?.speed}
+                            isOwn={isOwn}
+                            status={transfer?.status}
+                        />
                     )}
                     {message.type === 'text' && (
                         <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>

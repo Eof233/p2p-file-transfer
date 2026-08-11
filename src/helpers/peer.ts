@@ -14,7 +14,7 @@ export enum DataType {
 
 export interface Data {
     dataType: DataType
-    file?: Blob
+    file?: Blob | ArrayBuffer
     fileName?: string
     fileType?: string
     fileSize?: number
