@@ -6,7 +6,7 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "P2P Messenger",
+    "productName": "p2p-messenger",
     "version": "0.0.1"
   },
   "tauri": {
