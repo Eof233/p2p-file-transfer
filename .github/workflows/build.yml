@@ -89,14 +89,25 @@ jobs:
         with:
           path: artifacts
 
+      - name: List artifacts
+        run: find artifacts -type f || dir artifacts /s /b
+
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
+          # Collect all build artifacts
+          files=$(find artifacts -type f -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.AppImage' -o -name '*.app' 2>/dev/null || true)
+          if [ -z "$files" ]; then
+            echo "No artifacts found, uploading all files"
+            files=$(find artifacts -type f 2>/dev/null || true)
+          fi
+          echo "Files to upload:"
+          echo "$files"
           gh release create "$tag" \
             --repo "$GITHUB_REPOSITORY" \
             --title "P2P Messenger $tag" \
             --notes "See the assets below to download and install." \
             --draft \
-            artifacts/**/*
+            $files
