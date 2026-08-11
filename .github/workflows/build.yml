@@ -94,50 +94,28 @@ jobs:
       - name: Collect release assets
         id: collect
         run: |
+          set -euo pipefail
           mkdir -p release_assets
-          # Copy all bundle files (dmg, deb, rpm, AppImage, exe, msi) flat
           find artifacts -type f \( \
-            -name '*.dmg' -o \
-            -name '*.exe' -o \
-            -name '*.msi' -o \
-            -name '*.deb' -o \
-            -name '*.rpm' -o \
-            -name '*.AppImage' \
+            -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o \
+            -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
           \) -exec cp {} release_assets/ \;
           echo "=== Release assets ==="
           ls -lh release_assets/
           echo "count=$(ls release_assets/ | wc -l)" >> "$GITHUB_OUTPUT"
 
-      - name: Debug release assets
-        run: |
-          echo "=== Current directory ==="
-          pwd
-          echo "=== release_assets contents ==="
-          ls -laR release_assets/ 2>/dev/null || echo "directory not found"
-          echo "=== find output ==="
-          find release_assets -type f 2>/dev/null || echo "find failed"
-
       - name: Create GitHub Release
         if: steps.collect.outputs.count > 0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           tag="${GITHUB_REF#refs/tags/}"
-          echo "Creating release: $tag"
-          echo "Files to upload:"
-          find release_assets -type f
-          echo "---"
-          # Create release first without assets
+          echo "Creating release $tag with $(ls release_assets/ | wc -l) assets"
           gh release create "$tag" \
             --repo "$GITHUB_REPOSITORY" \
             --title "P2P Messenger $tag" \
             --notes "Download and install the package for your platform below." \
             --draft \
-            --target "${{ github.sha }}" 2>&1
-          echo "---"
-          echo "Uploading assets..."
-          # Upload each asset individually
-          for f in $(find release_assets -type f); do
-            echo "Uploading: $f"
-            gh release upload "$tag" "$f" --repo "$GITHUB_REPOSITORY" --clobber 2>&1
-          done
+            release_assets/*
+          echo "Release created successfully"
