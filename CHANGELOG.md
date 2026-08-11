@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-08-10
+
+### 🐛 Bug Fix: Real-time File Transfer Display
+
+**Problem:** Receiver only sees file after transfer completes, not during transfer
+
+**Root Cause:** Sender sent chunks without metadata first; receiver had no info to display
+
+**Fix: New 3-phase transfer protocol:**
+1. `FILE_START` - Send metadata (name, size, type) first → receiver shows file immediately
+2. `FILE_CHUNK` × N - Send chunks with progress → receiver updates progress bar
+3. `FILE_END` - Send completion signal → receiver stores blob for download
+
+**Additional:** Removed auto-download - user clicks download button to save
+
+#### Files Changed
+- [x] `src/hooks/useFileTransfer.ts` - 3-phase protocol
+- [x] `src/store/connection/connectionActions.ts` - Handle FILE_START/CHUNK/END
+- [x] `src/store/connection/connectionRequestActions.ts` - Same handler
+- [x] `src/utils/i18n.ts` - Add waitingToReceive translation
+
+---
+
 ## [1.0.6] - 2026-08-10
 
 ### 🚀 New Features
