@@ -90,24 +90,27 @@ jobs:
           path: artifacts
 
       - name: List artifacts
-        run: find artifacts -type f || dir artifacts /s /b
+        run: |
+          echo "=== Artifact structure ==="
+          find artifacts -type f -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.AppImage' -o -name '*.rpm' 2>/dev/null || true
 
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          # Collect all build artifacts
-          files=$(find artifacts -type f -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.AppImage' -o -name '*.app' 2>/dev/null || true)
-          if [ -z "$files" ]; then
-            echo "No artifacts found, uploading all files"
-            files=$(find artifacts -type f 2>/dev/null || true)
+          # Collect all build artifacts (dmg, exe, msi, deb, AppImage, rpm)
+          find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.AppImage' -o -name '*.rpm' \) > /tmp/artifact_files.txt
+          echo "=== Files to upload ==="
+          cat /tmp/artifact_files.txt
+          if [ ! -s /tmp/artifact_files.txt ]; then
+            echo "No bundle artifacts found, looking for any files"
+            find artifacts -type f > /tmp/artifact_files.txt
           fi
-          echo "Files to upload:"
-          echo "$files"
           gh release create "$tag" \
             --repo "$GITHUB_REPOSITORY" \
             --title "P2P Messenger $tag" \
             --notes "See the assets below to download and install." \
             --draft \
-            $files
+            --target "${{ github.sha }}" \
+            $(cat /tmp/artifact_files.txt)
