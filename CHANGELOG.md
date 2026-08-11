@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.6] - 2026-08-10 (In Progress)
+## [1.0.6] - 2026-08-10
 
 ### 🚀 New Features
 
@@ -14,11 +14,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [x] Show file in chat directly
 - [x] Transfer progress bar
 - [x] Transfer speed display
+- [x] Download button for received files
 
 #### Connection Quality Info
 - [x] Display peer IP and port
 - [x] Show latency/ping
 - [x] Connection quality indicator
+
+### 🐛 Bug Fixes
+
+**Fix 1: Stop Session Button**
+- **Problem**: Button not working, state not cleared
+- **Fix**: Add error handling, clear connection and file state
+
+**Fix 2: File Transfer Progress**
+- **Problem**: Progress bar not updating, speed not showing
+- **Root Cause**: Chunks sent synchronously, React couldn't re-render
+- **Fix**: Add setTimeout(0) between chunks to yield to event loop
+
+**Fix 3: Receiver Not Seeing Files**
+- **Problem**: Receiver's chat shows nothing after file sent
+- **Root Cause**: connectionRequestActions.ts had stub file handler
+- **Fix**: Implement full chunk reassembly and chat message creation
+
+**Fix 4: Download Button**
+- **Problem**: No way to download received files
+- **Fix**: Store blob in Redux, add download button to FileMessage
 
 ---
 
