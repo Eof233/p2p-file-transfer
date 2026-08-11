@@ -77,56 +77,103 @@ const handleReceivedData = (peerId: string, data: Data, dispatch: Dispatch) => {
         }
     }
 
-    if (data.dataType === DataType.FILE && data.transferId) {
-        const { transferId, chunkIndex, totalChunks, fileName, fileSize, fileType, file } = data
+    if (data.dataType === DataType.FILE) {
+        const { transferId, message: fileMessage } = data
 
-        if (!file || chunkIndex === undefined || !totalChunks) {
-            log.warn('Invalid file chunk received from peer: ' + peerId)
-            return
-        }
+        if (fileMessage === 'FILE_START' && transferId) {
+            log.info('File transfer started from peer: ' + peerId + ', transfer: ' + transferId + ', file: ' + data.fileName)
 
-        log.info('Received file chunk from peer: ' + peerId + ', transfer: ' + transferId + ', chunk: ' + chunkIndex + '/' + totalChunks)
-
-        // Create entry on first chunk
-        if (!pendingFileTransfers.has(transferId!)) {
-            pendingFileTransfers.set(transferId!, {
-                chunks: new Map(),
-                metadata: {
-                    fileName: fileName || 'unknown',
-                    fileSize: fileSize || 0,
-                    fileType: fileType || 'application/octet-stream',
-                    totalChunks,
-                },
-                peerId,
-            })
+            // Create pending transfer entry
+            if (!pendingFileTransfers.has(transferId)) {
+                pendingFileTransfers.set(transferId, {
+                    chunks: new Map(),
+                    metadata: {
+                        fileName: data.fileName || 'unknown',
+                        fileSize: data.fileSize || 0,
+                        fileType: data.fileType || 'application/octet-stream',
+                        totalChunks: 0,
+                    },
+                    peerId,
+                })
+            }
 
             // Create transfer record for progress tracking
-            const transfer: FileTransfer = {
-                id: transferId!,
-                fileName: fileName || 'unknown',
-                fileSize: fileSize || 0,
-                fileType: fileType || 'application/octet-stream',
+            dispatch(fileTransferStart({
+                id: transferId,
+                fileName: data.fileName || 'unknown',
+                fileSize: data.fileSize || 0,
+                fileType: data.fileType || 'application/octet-stream',
                 peerId,
                 direction: 'receive',
                 progress: 0,
                 status: 'transferring',
-            }
-            dispatch(fileTransferStart(transfer))
+            }))
+
+            // Show file in chat immediately
+            dispatch(addChatMessage(peerId, {
+                id: transferId,
+                senderId: peerId,
+                content: data.fileName || '',
+                timestamp: Date.now(),
+                type: 'file',
+                status: 'delivered',
+                fileName: data.fileName,
+                fileSize: data.fileSize,
+                fileType: data.fileType,
+                transferId,
+            } as ChatMessage))
+            return
         }
 
-        const entry = pendingFileTransfers.get(transferId!)!
+        if (fileMessage === 'FILE_CHUNK' && transferId) {
+            const { chunkIndex, totalChunks, file } = data
 
-        // Store chunk (handle both Blob and ArrayBuffer)
-        const chunkBlob = file instanceof Blob ? file : new Blob([file as ArrayBuffer], { type: entry.metadata.fileType })
-        entry.chunks.set(chunkIndex, chunkBlob)
+            if (file === undefined || chunkIndex === undefined || !totalChunks) {
+                log.warn('Invalid FILE_CHUNK received from peer: ' + peerId)
+                return
+            }
 
-        // Update progress
-        const progress = Math.round((entry.chunks.size / entry.metadata.totalChunks) * 100)
-        dispatch(fileTransferProgress(transferId!, progress))
+            // Ensure pending entry exists
+            if (!pendingFileTransfers.has(transferId)) {
+                pendingFileTransfers.set(transferId, {
+                    chunks: new Map(),
+                    metadata: {
+                        fileName: 'unknown',
+                        fileSize: 0,
+                        fileType: 'application/octet-stream',
+                        totalChunks,
+                    },
+                    peerId,
+                })
+            }
 
-        // Check if all chunks received
-        if (entry.chunks.size === entry.metadata.totalChunks) {
-            log.info('All chunks received for transfer: ' + transferId + ', reassembling...')
+            const entry = pendingFileTransfers.get(transferId)!
+            entry.metadata.totalChunks = totalChunks
+
+            // Store chunk (handle both Blob and ArrayBuffer)
+            const chunkBlob = file instanceof Blob ? file : new Blob([file as ArrayBuffer], { type: entry.metadata.fileType })
+            entry.chunks.set(chunkIndex, chunkBlob)
+
+            // Update progress
+            const progress = Math.round((entry.chunks.size / totalChunks) * 100)
+            dispatch(fileTransferProgress(transferId, progress))
+            return
+        }
+
+        if (fileMessage === 'FILE_END' && transferId) {
+            const entry = pendingFileTransfers.get(transferId)
+
+            if (!entry || entry.chunks.size < entry.metadata.totalChunks) {
+                log.warn('FILE_END received but not all chunks present for transfer: ' + transferId)
+                return
+            }
+
+            log.info('File transfer complete, reassembling: ' + transferId)
+
+            // Update metadata from FILE_END if available
+            if (data.fileName) entry.metadata.fileName = data.fileName
+            if (data.fileSize) entry.metadata.fileSize = data.fileSize
+            if (data.fileType) entry.metadata.fileType = data.fileType
 
             // Reassemble chunks in order
             const sortedChunks: Blob[] = []
@@ -135,42 +182,15 @@ const handleReceivedData = (peerId: string, data: Data, dispatch: Dispatch) => {
             }
             const blob = new Blob(sortedChunks, { type: entry.metadata.fileType })
 
-            // Create chat message for the received file
-            const chatMessage: ChatMessage = {
-                id: crypto.randomUUID(),
-                senderId: peerId,
-                content: '',
-                timestamp: Date.now(),
-                type: 'file',
-                status: 'delivered',
-                fileName: entry.metadata.fileName,
-                fileSize: entry.metadata.fileSize,
-                fileType: entry.metadata.fileType,
-                transferId: transferId!,
-            }
-            dispatch(addChatMessage(peerId, chatMessage))
-
-            // Auto-download the received file
-            try {
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = entry.metadata.fileName
-                document.body.appendChild(a)
-                a.click()
-                document.body.removeChild(a)
-                setTimeout(() => URL.revokeObjectURL(url), 1000)
-                log.info('File download triggered: ' + entry.metadata.fileName)
-            } catch (e) {
-                log.error('Failed to trigger file download', e)
-            }
-
             // Mark transfer as complete and store blob for download
-            dispatch(fileTransferComplete(transferId!, blob))
+            dispatch(fileTransferComplete(transferId, blob))
 
             // Clean up
-            pendingFileTransfers.delete(transferId!)
+            pendingFileTransfers.delete(transferId)
+            return
         }
+
+        log.warn('Unknown FILE message type from peer: ' + peerId + ', message: ' + fileMessage)
         return
     }
 

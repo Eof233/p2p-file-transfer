@@ -71,9 +71,21 @@ export const useFileTransfer = () => {
             }
             dispatch(addChatMessage(selectedPeerId, chatMessage))
 
-            // Chunk and send the file
+            // Send file using FILE_START / FILE_CHUNK / FILE_END protocol
             try {
                 const chunks = await FileService.chunkFile(file, transferId, CHUNK_SIZE)
+
+                // 1. Send FILE_START with metadata so receiver can show file immediately
+                await PeerConnection.sendConnection(selectedPeerId, {
+                    dataType: DataType.FILE,
+                    message: 'FILE_START',
+                    transferId,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                })
+
+                // 2. Send each chunk
                 const startTime = Date.now()
                 let bytesSent = 0
 
@@ -83,12 +95,10 @@ export const useFileTransfer = () => {
 
                     await PeerConnection.sendConnection(selectedPeerId, {
                         dataType: DataType.FILE,
+                        message: 'FILE_CHUNK',
                         transferId,
                         chunkIndex: i,
                         totalChunks: chunks.length,
-                        fileName: file.name,
-                        fileSize: file.size,
-                        fileType: file.type,
                         file: blob,
                     })
 
@@ -102,6 +112,16 @@ export const useFileTransfer = () => {
                     // Yield to allow React to process the progress update and re-render
                     await new Promise<void>((resolve) => setTimeout(resolve, 0))
                 }
+
+                // 3. Send FILE_END completion signal
+                await PeerConnection.sendConnection(selectedPeerId, {
+                    dataType: DataType.FILE,
+                    message: 'FILE_END',
+                    transferId,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                })
 
                 dispatch(fileTransferComplete(transferId))
                 log.info('File sent successfully: ' + file.name)

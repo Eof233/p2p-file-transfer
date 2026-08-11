@@ -65,6 +65,7 @@ export interface Translations {
     // File Message
     sending: string
     receiving: string
+    waitingToReceive: string
     speed: string
     progress: string
     fileSent: string
@@ -170,6 +171,7 @@ const en: Translations = {
 
     sending: 'Sending...',
     receiving: 'Receiving...',
+    waitingToReceive: 'Waiting to receive...',
     speed: 'Speed',
     progress: 'Progress',
     fileSent: 'File sent',
@@ -271,6 +273,7 @@ const zh: Translations = {
 
     sending: '发送中...',
     receiving: '接收中...',
+    waitingToReceive: '等待接收...',
     speed: '速度',
     progress: '进度',
     fileSent: '文件已发送',
