@@ -1,6 +1,6 @@
 [package]
 name = "p2p-messenger"
-version = "1.0.0"
+version = "0.0.1"
 description = "Secure P2P Messenger"
 authors = ["P2P Messenger Team"]
 edition = "2021"

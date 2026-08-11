@@ -1,7 +1,8 @@
 {
   "name": "p2p-messenger",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "private": true,
+  "homepage": "https://eof233.github.io/p2p-file-transfer",
   "type": "module",
   "scripts": {
     "dev": "vite",
