@@ -96,3 +96,38 @@ export const sendTyping:
         log.debug('Failed to send typing indicator to peer: ' + peerId, err)
     }
 })
+
+/**
+ * Tell the sender a message was delivered/read. Both statuses use the same
+ * encrypted OTHER channel; the sender patches the chat message on receipt.
+ */
+export const sendReceipt:
+    (peerId: string, messageId: string, status: 'delivered' | 'read') =>
+        (dispatch: Dispatch, getState: () => any) => Promise<void>
+    = (peerId, messageId, status) => (async (_dispatch, getState) => {
+    const data = await buildChatPayload(peerId, {dataType: 'RECEIPT', messageId, status}, getState().settings.encryptionEnabled)
+    try {
+        await PeerConnection.sendConnection(peerId, data)
+    } catch (err) {
+        log.debug('Failed to send receipt to peer: ' + peerId, err)
+    }
+})
+
+/**
+ * Send read receipts for every incoming message from a peer (catch-up when
+ * the user opens the conversation).
+ */
+export const sendReadReceipts:
+    (peerId: string) => (dispatch: Dispatch, getState: () => any) => Promise<void>
+    = (peerId) => (async (_dispatch, getState) => {
+    const state = getState()
+    const messages = (state.chat.messages[peerId] as ChatMessage[] | undefined) ?? []
+    const incoming = messages.filter(m => m.senderId === peerId)
+    for (const message of incoming) {
+        try {
+            await sendReceipt(peerId, message.id, 'read')(_dispatch, getState)
+        } catch {
+            // best effort
+        }
+    }
+})

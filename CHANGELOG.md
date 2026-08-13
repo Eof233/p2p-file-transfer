@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-13
+
+### 🚀 Phase 2: Reliability & UX
+
+- **Chunk retransmission**: after `FILE_END` the receiver verifies chunk
+  completeness and answers `FILE_COMPLETE` or `FILE_MISSING` (list of chunk
+  indexes). The sender retransmits missing chunks and re-signals end, up to 5
+  rounds. A lost chunk no longer silently kills large transfers.
+- **Encrypted file metadata**: `FILE_START` (name/size/type/message type) is
+  now AES-256-GCM encrypted when a session key exists. `FILE_END` no longer
+  repeats plaintext metadata.
+- **Message receipts**: receivers send `DELIVERED` on arrival and `READ` when
+  the conversation is open; opening a conversation sends catch-up read
+  receipts. Sender bubbles update ✓ → ✓✓ (accent color).
+- **Drag & drop**: drop one or many files onto the chat area to send them
+  (images are auto-compressed; non-images go through the file protocol).
+- **Connection history**: recent peer IDs persist in localStorage and appear
+  in the sidebar ("Recent") for one-click reconnect.
+- **Desktop notifications**: enabling notifications requests permission and
+  shows a notification for incoming messages while the app is hidden.
+- **Backpressure & progress**: progress is now chunk-count based (clamped to
+  100% across retransmissions).
+
+#### Files Changed (highlights)
+- [x] `src/store/file/transferCoordinator.ts` — end-answer waiters, round state
+- [x] `src/store/connection/receiveData.ts` — FILE_MISSING/COMPLETE, receipts, notifications, encrypted FILE_START
+- [x] `src/hooks/useFileTransfer.ts` — retransmission loop
+- [x] `src/store/chat/chatActions.ts` — sendReceipt / sendReadReceipts
+- [x] `src/store/connection/*` — history state + selectConnection thunk
+- [x] `src/components/sidebar/Sidebar.tsx` — recent contacts
+- [x] `src/components/chat/ChatView.tsx` — drag & drop overlay
+- [x] `src/components/settings/SettingsDialog.tsx` — notification permission
+- [x] `src/utils/i18n.ts` — dropFiles / recent
+
+### Known Limitations (still open)
+
+- Protocol control messages (FILE_ACCEPT/CANCEL/...) remain plaintext; only
+  metadata and content are encrypted.
+- No pause/resume across sessions; retransmission is per-transfer only.
+- Read receipts are best-effort (no retry queue).
+- Auto-reconnect covers the signaling layer only; data channels are not
+  re-established yet.
+
+---
+
 ## [1.0.8] - 2026-08-13
 
 ### 🔐 Real End-to-End Encryption (Phase 1)

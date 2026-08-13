@@ -23,6 +23,8 @@ export interface Data {
     transferId?: string
     chunkIndex?: number
     totalChunks?: number
+    // List of chunk indexes the receiver wants retransmitted (FILE_MISSING)
+    missingChunks?: number[]
     // E2E encryption fields: ciphertext travels base64-encoded in `payload`
     encrypted?: boolean
     iv?: string

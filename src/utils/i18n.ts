@@ -15,6 +15,7 @@ export interface Translations {
     noConnectionsHint: string
     enterPeerId: string
     connect: string
+    recent: string
 
     // Chat
     selectConnection: string
@@ -28,6 +29,7 @@ export interface Translations {
     pasteImage: string
     closePreview: string
     downloadImage: string
+    dropFiles: string
 
     // Settings
     appearance: string
@@ -125,6 +127,7 @@ const en: Translations = {
     noConnectionsHint: 'Click + to connect to a peer',
     enterPeerId: 'Enter peer ID...',
     connect: 'Connect',
+    recent: 'Recent',
 
     selectConnection: 'Select a connection',
     selectConnectionHint: 'Choose a peer from the sidebar to start chatting',
@@ -137,6 +140,7 @@ const en: Translations = {
     pasteImage: 'Paste image from clipboard (Ctrl+V)',
     closePreview: 'Close preview',
     downloadImage: 'Download image',
+    dropFiles: 'Drop files to send',
 
     appearance: 'Appearance',
     light: 'Light',
@@ -227,6 +231,7 @@ const zh: Translations = {
     noConnectionsHint: '点击 + 连接对等方',
     enterPeerId: '输入对等方 ID...',
     connect: '连接',
+    recent: '最近',
 
     selectConnection: '选择一个连接',
     selectConnectionHint: '从侧边栏选择一个对等方开始聊天',
@@ -239,6 +244,7 @@ const zh: Translations = {
     pasteImage: '从剪贴板粘贴图片 (Ctrl+V)',
     closePreview: '关闭预览',
     downloadImage: '下载图片',
+    dropFiles: '拖放文件到此处发送',
 
     appearance: '外观',
     light: '浅色',

@@ -24,9 +24,10 @@ export const App: React.FC = () => {
         return connectionRequests.find(r => r.status === 'pending') || null
     }, [connectionRequests])
 
-    // Load settings on mount
+    // Load settings and connection history on mount
     useEffect(() => {
         dispatch(loadSettings() as any)
+        dispatch(connectionAction.loadConnectionHistoryState() as any)
     }, [dispatch])
 
     const handleStartSession = () => {
@@ -50,7 +51,7 @@ export const App: React.FC = () => {
     }
 
     const handleSelectConnection = (id: string) => {
-        dispatch(connectionAction.selectItem(id))
+        dispatch(connectionAction.selectConnection(id) as any)
     }
 
     const handleCopyId = async () => {
@@ -85,6 +86,7 @@ export const App: React.FC = () => {
                 {peer.started && (
                     <Sidebar
                         connections={connection.list}
+                        history={connection.history}
                         selectedId={connection.selectedId}
                         onSelect={handleSelectConnection}
                         onConnect={handleConnectPeer}

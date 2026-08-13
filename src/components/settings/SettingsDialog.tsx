@@ -24,6 +24,13 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onOpenChan
     }
 
     const handleNotificationsToggle = () => {
+        const nextEnabled = !settings.notificationsEnabled
+        if (nextEnabled && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {
+                // Permission denied or unsupported: still allow the toggle,
+                // notifications simply won't show until granted.
+            })
+        }
         dispatch({ type: SettingsActionType.SETTINGS_NOTIFICATIONS_TOGGLE })
     }
 

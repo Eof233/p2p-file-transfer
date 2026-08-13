@@ -1,7 +1,8 @@
 import { Dispatch } from "redux";
 import { DataType, Data, PeerConnection } from "../../helpers/peer";
-import { addChatMessage, setChatTyping, updateChatMessage } from "../chat/chatActions";
+import { addChatMessage, setChatTyping, updateChatMessage, sendReceipt } from "../chat/chatActions";
 import { ChatMessage } from "../chat/chatTypes";
+import { store } from "../index";
 import {
     fileTransferStart,
     fileTransferProgress,
@@ -19,12 +20,16 @@ import {
     clearTransferState,
     isTransferCancelled,
     markTransferCancelled,
+    answerEndWaiter,
 } from "../file/transferCoordinator";
 import { encryptionManager } from "../../services/encryptionService";
 import { LARGE_FILE_THRESHOLD, TYPING_TIMEOUT } from "../../utils/constants";
 import { createLogger } from "../../services/logService";
 
 const log = createLogger('ReceiveData')
+
+/** Maximum FILE_MISSING retransmission rounds before failing the transfer. */
+const MAX_RETRANSMIT_ROUNDS = 5
 
 /**
  * Single shared implementation of the incoming-data pipeline.
@@ -128,11 +133,46 @@ const handleChatOrTyping = async (peerId: string, data: Data, dispatch: Dispatch
             imageData: json.imageData as string | undefined,
         }
         dispatch(addChatMessage(peerId, chatMessage))
+
+        // Acknowledge delivery (and read, when the user is looking at this chat)
+        dispatch(sendReceipt(peerId, chatMessage.id, 'delivered') as any)
+        if (store.getState().connection.selectedId === peerId) {
+            dispatch(sendReceipt(peerId, chatMessage.id, 'read') as any)
+        }
+
+        // Desktop notification when the app is in the background
+        const state = store.getState()
+        if (
+            state.settings.notificationsEnabled &&
+            document.visibilityState === 'hidden' &&
+            typeof Notification !== 'undefined' &&
+            Notification.permission === 'granted'
+        ) {
+            try {
+                const body = chatMessage.type === 'text'
+                    ? chatMessage.content
+                    : chatMessage.type === 'image'
+                        ? '📷 ' + (chatMessage.fileName || 'Image')
+                        : '📄 ' + (chatMessage.fileName || 'File')
+                new Notification(peerId, { body: body.slice(0, 200) })
+            } catch (e) {
+                log.debug('Failed to show desktop notification', e)
+            }
+        }
         return
     }
 
     if (json.dataType === 'TYPING') {
         handleTyping(peerId, (json.typing as boolean) ?? false, dispatch)
+        return
+    }
+
+    if (json.dataType === 'RECEIPT') {
+        const messageId = json.messageId as string | undefined
+        const status = json.status as 'delivered' | 'read' | undefined
+        if (messageId && (status === 'delivered' || status === 'read')) {
+            dispatch(updateChatMessage(peerId, messageId, { status }))
+        }
     }
 }
 
@@ -176,15 +216,54 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
         return
     }
 
+    // Sender side: receiver verified all chunks
+    if (fileMessage === 'FILE_COMPLETE' && transferId) {
+        log.info('Transfer confirmed complete by peer: ' + peerId + ', transfer: ' + transferId)
+        answerEndWaiter(transferId, { kind: 'complete' })
+        return
+    }
+
+    // Sender side: receiver asks for missing chunks
+    if (fileMessage === 'FILE_MISSING' && transferId) {
+        const missingList = data.missingChunks
+        if (!missingList || missingList.length === 0) {
+            log.warn('FILE_MISSING without chunk list from peer: ' + peerId)
+            return
+        }
+        log.info('Peer requests ' + missingList.length + ' missing chunks for transfer: ' + transferId)
+        answerEndWaiter(transferId, { kind: 'missing', missing: missingList })
+        return
+    }
+
     // Receiver side: file lifecycle
     if (fileMessage === 'FILE_START' && transferId) {
         log.info('File transfer started from peer: ' + peerId + ', transfer: ' + transferId + ', file: ' + data.fileName)
 
-        const chatType: 'file' | 'image' = data.messageType === 'image' ? 'image' : 'file'
+        // FILE_START metadata may be encrypted (filename/size are sensitive)
+        let chatType: 'file' | 'image' = data.messageType === 'image' ? 'image' : 'file'
+        let fileName = data.fileName
+        let fileSize = data.fileSize
+        let fileType = data.fileType
+
+        if (data.encrypted) {
+            try {
+                if (!data.iv || !data.payload) throw new Error('missing iv/payload')
+                const plaintext = await encryptionManager.decryptString(peerId, { iv: data.iv, data: data.payload })
+                const meta = JSON.parse(plaintext)
+                chatType = meta.messageType === 'image' ? 'image' : 'file'
+                fileName = meta.fileName
+                fileSize = meta.fileSize
+                fileType = meta.fileType
+            } catch (e) {
+                log.warn('Failed to decrypt FILE_START metadata from peer: ' + peerId, e)
+                // Fall back to plaintext fields (may be undefined -> defaults below)
+            }
+        }
+
         const metadata = {
-            fileName: data.fileName || 'unknown',
-            fileSize: data.fileSize || 0,
-            fileType: data.fileType || 'application/octet-stream',
+            fileName: fileName || 'unknown',
+            fileSize: fileSize || 0,
+            fileType: fileType || 'application/octet-stream',
             totalChunks: 0,
             chatType,
         }
@@ -200,6 +279,7 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
             metadata,
             peerId,
             accepted: false,
+            retransmitRounds: 0,
         })
 
         const isLarge = metadata.fileSize > LARGE_FILE_THRESHOLD
@@ -287,23 +367,41 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
     if (fileMessage === 'FILE_END' && transferId) {
         const entry = pendingIncomingTransfers.get(transferId)
 
-        if (!entry || !entry.accepted || entry.chunks.size < entry.metadata.totalChunks) {
-            log.warn('FILE_END received but transfer incomplete: ' + transferId)
-            if (entry) {
-                dispatch(fileTransferError(transferId, 'Incomplete transfer'))
+        if (!entry || !entry.accepted) {
+            log.warn('FILE_END received for unknown/unaccepted transfer: ' + transferId)
+            return
+        }
+
+        // Detect missing chunks and ask for retransmission (bounded rounds)
+        const totalChunks = entry.metadata.totalChunks
+        const missing: number[] = []
+        for (let i = 0; i < totalChunks; i++) {
+            if (!entry.chunks.has(i)) missing.push(i)
+        }
+
+        if (missing.length > 0) {
+            entry.retransmitRounds++
+            if (entry.retransmitRounds > MAX_RETRANSMIT_ROUNDS) {
+                log.error('Transfer failed after ' + MAX_RETRANSMIT_ROUNDS + ' retransmission rounds: ' + transferId)
+                dispatch(fileTransferError(transferId, 'Transfer failed: too many lost chunks'))
                 clearTransferState(transferId)
+                return
             }
+            log.warn('Missing ' + missing.length + ' chunks for transfer ' + transferId
+                + ', retransmission round ' + entry.retransmitRounds)
+            PeerConnection.sendConnection(peerId, {
+                dataType: DataType.FILE,
+                message: 'FILE_MISSING',
+                transferId,
+                missingChunks: missing,
+            }).catch((err) => log.error('Failed to send FILE_MISSING', err))
             return
         }
 
         log.info('File transfer complete, reassembling: ' + transferId)
 
-        if (data.fileName) entry.metadata.fileName = data.fileName
-        if (data.fileSize) entry.metadata.fileSize = data.fileSize
-        if (data.fileType) entry.metadata.fileType = data.fileType
-
         const sortedChunks: Blob[] = []
-        for (let i = 0; i < entry.metadata.totalChunks; i++) {
+        for (let i = 0; i < totalChunks; i++) {
             const chunk = entry.chunks.get(i)
             if (!chunk) {
                 log.error('Missing chunk ' + i + ' for transfer: ' + transferId)
@@ -322,6 +420,13 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
             const url = URL.createObjectURL(blob)
             dispatch(updateChatMessage(peerId, transferId, { imageData: url }))
         }
+
+        // Acknowledge completion so the sender can finish its state machine
+        PeerConnection.sendConnection(peerId, {
+            dataType: DataType.FILE,
+            message: 'FILE_COMPLETE',
+            transferId,
+        }).catch((err) => log.error('Failed to send FILE_COMPLETE', err))
 
         clearTransferState(transferId)
         return

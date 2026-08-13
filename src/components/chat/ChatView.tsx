@@ -32,6 +32,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
     const { t } = useI18n()
     const [verifyDialogOpen, setVerifyDialogOpen] = useState(false)
     const [previewImage, setPreviewImage] = useState<string | null>(null)
+    const [dragActive, setDragActive] = useState(false)
+    const dragDepthRef = useRef(0)
 
     // Incoming files from this peer awaiting acceptance
     const incomingPendingFile = useMemo(
@@ -69,6 +71,42 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
         setTyping(isTyping)
     }, [setTyping])
 
+    // --- Drag & drop file sending ---
+    const handleDragEnter = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        if (e.dataTransfer.types.includes('Files')) {
+            dragDepthRef.current++
+            setDragActive(true)
+        }
+    }, [])
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+        if (dragDepthRef.current === 0) setDragActive(false)
+    }, [])
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+    }, [])
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        dragDepthRef.current = 0
+        setDragActive(false)
+
+        const files = Array.from(e.dataTransfer.files)
+        if (files.length === 0) return
+
+        for (const file of files) {
+            if (file.type.startsWith('image/')) {
+                handleSendImage(file)
+            } else {
+                handleSendFile(file)
+            }
+        }
+    }, [handleSendFile, handleSendImage])
+
     // Encryption state for this peer
     const isEncrypted = hasSessionKey(peerId)
     const remoteFingerprint = getRemoteFingerprint(peerId)
@@ -90,7 +128,27 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <div
+            className="flex flex-col h-full relative"
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+        >
+            {/* Drag & drop overlay */}
+            {dragActive && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center bg-[var(--accent)]/10 border-2 border-dashed border-[var(--accent)] rounded-xl m-2 pointer-events-none animate-fade-in">
+                    <div className="flex flex-col items-center gap-2 px-6 py-4 rounded-2xl bg-[var(--bg-elevated)] shadow-lg">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{t.dropFiles}</span>
+                    </div>
+                </div>
+            )}
+
             {/* Chat Header */}
             <div className="flex items-center justify-between px-4 h-14 border-b border-[var(--separator)] bg-[var(--bg-primary)]">
                 <div className="flex items-center gap-3">

@@ -15,6 +15,7 @@ import {
     markTransferCancelled,
     isTransferCancelled,
     waitForAcceptance,
+    waitForEndAnswer,
     clearTransferState,
 } from '../store/file/transferCoordinator'
 import { addChatMessage } from '../store/chat/chatActions'
@@ -28,6 +29,8 @@ const log = createLogger('useFileTransfer')
 
 const CHUNK_SIZE = 16 * 1024 // 16KB per chunk
 const ACCEPT_TIMEOUT = 120 * 1000 // wait up to 2 min for receiver acceptance
+const END_ANSWER_TIMEOUT = 60 * 1000 // wait up to 1 min for FILE_COMPLETE/MISSING
+const MAX_RETRANSMIT_ROUNDS = 5 // how many times the receiver may ask for chunks
 const MAX_BUFFERED_BYTES = 1024 * 1024 // pause sending while the channel buffers >1MB
 
 interface SendFileOptions {
@@ -110,34 +113,54 @@ export const useFileTransfer = () => {
                 const chunks = await FileService.chunkFile(file, transferId, CHUNK_SIZE)
 
                 // 1. Send FILE_START with metadata so the receiver can show the
-                //    file immediately and decide whether to accept it.
-                await PeerConnection.sendConnection(peerId, {
-                    dataType: DataType.FILE,
-                    message: 'FILE_START',
-                    transferId,
-                    fileName: file.name,
-                    fileSize: file.size,
-                    fileType: file.type,
-                    messageType: chatType,
-                })
+                //    file immediately and decide whether to accept it. When a
+                //    session key exists the metadata is encrypted too.
+                if (useEncryption) {
+                    const encryptedMeta = await encryptionManager.encryptString(peerId, JSON.stringify({
+                        transferId,
+                        fileName: file.name,
+                        fileSize: file.size,
+                        fileType: file.type,
+                        messageType: chatType,
+                    }))
+                    await PeerConnection.sendConnection(peerId, {
+                        dataType: DataType.FILE,
+                        message: 'FILE_START',
+                        transferId,
+                        encrypted: true,
+                        iv: encryptedMeta.iv,
+                        payload: encryptedMeta.data,
+                    })
+                } else {
+                    await PeerConnection.sendConnection(peerId, {
+                        dataType: DataType.FILE,
+                        message: 'FILE_START',
+                        transferId,
+                        fileName: file.name,
+                        fileSize: file.size,
+                        fileType: file.type,
+                        messageType: chatType,
+                    })
+                }
 
                 // 2. Wait for the receiver's FILE_ACCEPT (rejects on FILE_REJECT/timeout)
-                const acceptance = waitForAcceptance(transferId, ACCEPT_TIMEOUT)
-                await acceptance
+                await waitForAcceptance(transferId, ACCEPT_TIMEOUT)
                 if (isTransferCancelled(transferId)) {
                     throw new Error('Transfer cancelled')
                 }
 
-                // 3. Send each chunk
+                // 3. Send chunks, then hand over to the retransmission loop:
+                //    FILE_END → receiver answers FILE_COMPLETE or FILE_MISSING.
                 const startTime = Date.now()
                 let bytesSent = 0
+                const sentIndexes = new Set<number>()
 
-                for (let i = 0; i < chunks.length; i++) {
+                const sendChunk = async (index: number) => {
                     if (isTransferCancelled(transferId)) {
                         throw new Error('Transfer cancelled')
                     }
 
-                    const chunk = chunks[i]
+                    const chunk = chunks[index]
                     let chunkMessage: Parameters<typeof PeerConnection.sendConnection>[1]
                     if (useEncryption) {
                         const encrypted = await encryptionManager.encryptBytes(peerId, chunk.data)
@@ -145,7 +168,7 @@ export const useFileTransfer = () => {
                             dataType: DataType.FILE,
                             message: 'FILE_CHUNK',
                             transferId,
-                            chunkIndex: i,
+                            chunkIndex: index,
                             totalChunks: chunks.length,
                             encrypted: true,
                             iv: encrypted.iv,
@@ -157,7 +180,7 @@ export const useFileTransfer = () => {
                             dataType: DataType.FILE,
                             message: 'FILE_CHUNK',
                             transferId,
-                            chunkIndex: i,
+                            chunkIndex: index,
                             totalChunks: chunks.length,
                             file: blob,
                         }
@@ -168,26 +191,40 @@ export const useFileTransfer = () => {
                     await PeerConnection.sendConnection(peerId, chunkMessage)
 
                     bytesSent += chunk.data.byteLength
-                    const elapsed = Date.now() - startTime
-                    const speed = FileService.calculateSpeed(bytesSent, elapsed)
-                    const progress = Math.round((bytesSent / file.size) * 100)
-
-                    dispatch(fileTransferProgress(transferId, progress, speed))
+                    if (!sentIndexes.has(index)) {
+                        sentIndexes.add(index)
+                        const elapsed = Date.now() - startTime
+                        const speed = FileService.calculateSpeed(bytesSent, elapsed)
+                        const progress = Math.min(100, Math.round((sentIndexes.size / chunks.length) * 100))
+                        dispatch(fileTransferProgress(transferId, progress, speed))
+                    }
 
                     // Yield to allow React to process the progress update
                     await new Promise<void>((resolve) => setTimeout(resolve, 0))
                 }
 
-                // 4. Send FILE_END completion signal
-                await PeerConnection.sendConnection(peerId, {
-                    dataType: DataType.FILE,
-                    message: 'FILE_END',
-                    transferId,
-                    fileName: file.name,
-                    fileSize: file.size,
-                    fileType: file.type,
-                    messageType: chatType,
-                })
+                let pendingIndexes = chunks.map((_, i) => i)
+                for (let round = 0; ; round++) {
+                    for (const index of pendingIndexes) {
+                        await sendChunk(index)
+                    }
+
+                    // 4. Signal end; the receiver verifies chunk completeness
+                    await PeerConnection.sendConnection(peerId, {
+                        dataType: DataType.FILE,
+                        message: 'FILE_END',
+                        transferId,
+                    })
+
+                    const answer = await waitForEndAnswer(transferId, END_ANSWER_TIMEOUT)
+                    if (answer.kind === 'complete') break
+                    if (round >= MAX_RETRANSMIT_ROUNDS) {
+                        throw new Error('Transfer failed after too many retransmission rounds')
+                    }
+                    log.warn('Retransmitting ' + answer.missing.length + ' chunks for transfer: ' + transferId
+                        + ', round ' + (round + 1))
+                    pendingIndexes = answer.missing
+                }
 
                 dispatch(fileTransferComplete(transferId))
                 clearTransferState(transferId)

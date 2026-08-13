@@ -53,13 +53,17 @@ of Redux because it holds live Blobs/ciphertext.
 
 **File transfer protocol** (all control messages are `DataType.FILE` with a
 `message` field):
-1. `FILE_START` (metadata + `messageType: 'file' | 'image'`)
+1. `FILE_START` (metadata + `messageType: 'file' | 'image'`; encrypted when a
+   session key exists)
 2. `FILE_ACCEPT` / `FILE_REJECT` — receiver confirmation (>5MB requires
    explicit accept; smaller files auto-accept)
 3. `FILE_CHUNK` × N (encrypted when a session key exists)
-4. `FILE_END` — receiver reassembles into a Blob (images get an object URL
-   patched onto the chat message)
+4. `FILE_END` → receiver checks completeness → `FILE_COMPLETE` or
+   `FILE_MISSING` (chunk indexes); sender retransmits up to 5 rounds
 5. `FILE_CANCEL` — either side aborts
+
+**Receipts**: receivers send `RECEIPT` (`delivered`/`read`) over the encrypted
+OTHER channel; `selectConnection` sends catch-up read receipts.
 
 **`src/store/`** — Redux Toolkit store with slices: `peer`, `connection`,
 `connectionRequest`, `chat`, `file`, `settings`. Thunks are hand-written and
@@ -79,18 +83,23 @@ request dialog.
   runs before sending.
 - **Cancel** is cooperative: the send loop checks
   `isTransferCancelled(transferId)` at each chunk boundary.
+- **Connection history** lives in the `connection` slice (`history: string[]`)
+  and persists to localStorage key `p2p-messenger-connections`.
+- **Notifications** fire only when `notificationsEnabled` and the document is
+  hidden; permission is requested when the setting is enabled.
 - **Radix UI + Tailwind**, no Ant Design. Theme tokens are CSS variables in
   `src/styles/globals.css`; i18n keys live in `src/utils/i18n.ts` (en/zh).
 - **No backend** — the only external dependency is PeerJS's signaling server.
 - No routing, no tests yet, no ESLint/Prettier config.
 
-## Known Issues (as of 1.0.8)
+## Known Issues (as of 1.1.0)
 
-- File metadata and protocol control messages are plaintext (content is
-  encrypted).
-- No chunk retransmission; a lost chunk fails the transfer.
-- No read receipts; no drag & drop; no connection history; auto-reconnect
-  covers signaling only.
-- Tauri is 1.x while README/PRD mention 2.x; no system tray/auto-updater.
+- Protocol control messages (FILE_ACCEPT/CANCEL/…) are plaintext; metadata
+  and content are encrypted.
+- No pause/resume across sessions; retransmission is per-transfer only.
+- Read receipts are best-effort (no retry queue).
+- Auto-reconnect covers the signaling layer only; data channels are not
+  re-established. Tauri is 1.x while README/PRD mention 2.x; no system
+  tray/auto-updater.
 - Some dead code remains: `usePeer`, `useAsyncState`, `validators.ts`,
   unused constants, `FilePreview`, `TransferProgress`, Toast components.

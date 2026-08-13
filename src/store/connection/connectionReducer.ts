@@ -7,6 +7,7 @@ export const initialState: ConnectionState = {
     list: [],
     selectedId: undefined,
     error: undefined,
+    history: [],
 }
 
 export const ConnectionReducer: Reducer<ConnectionState> = (state = initialState, action) => {
@@ -43,8 +44,16 @@ export const ConnectionReducer: Reducer<ConnectionState> = (state = initialState
         case ConnectionActionType.CONNECTION_ERROR:
             return { ...state, error: action.error }
 
+        case ConnectionActionType.CONNECTION_HISTORY_ADD: {
+            const history = [action.id, ...state.history.filter(e => e !== action.id)].slice(0, 10)
+            return { ...state, history }
+        }
+
+        case ConnectionActionType.CONNECTION_HISTORY_LOAD:
+            return { ...state, history: action.history }
+
         case ConnectionActionType.CONNECTION_RESET:
-            return { ...initialState }
+            return { ...initialState, history: state.history }
 
         default:
             return state

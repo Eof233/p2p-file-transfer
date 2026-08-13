@@ -1,7 +1,7 @@
 import { Dispatch } from "redux";
 import { ConnectionRequestActionType } from "./connectionRequestTypes";
 import { PeerConnection } from "../../helpers/peer";
-import { addConnectionList } from "./connectionActions";
+import { addConnectionList, rememberConnection } from "./connectionActions";
 import { createLogger } from "../../services/logService";
 
 const log = createLogger('ConnectionRequestActions')
@@ -42,6 +42,7 @@ export const acceptConnection: (peerId: string) => (dispatch: Dispatch) => void
         log.info('Accepting connection from peer: ' + peerId)
         dispatch(acceptConnectionRequest(peerId))
         dispatch(addConnectionList(peerId))
+        dispatch(rememberConnection(peerId) as any)
         dispatch(clearCompletedRequests())
     }
 
