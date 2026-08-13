@@ -13,6 +13,17 @@ export const ChatReducer: Reducer<ChatState> = (state = initialState, action) =>
             const existing = state.messages[peerId] || []
             return {...state, messages: {...state.messages, [peerId]: [...existing, message]}}
         }
+        case ChatActionType.CHAT_MESSAGE_UPDATE: {
+            const {peerId, messageId, patch} = action
+            const existing = state.messages[peerId] || []
+            return {
+                ...state,
+                messages: {
+                    ...state.messages,
+                    [peerId]: existing.map(m => m.id === messageId ? {...m, ...patch} : m)
+                }
+            }
+        }
         case ChatActionType.CHAT_HISTORY_SET: {
             const {peerId, messages} = action
             return {...state, messages: {...state.messages, [peerId]: messages}}

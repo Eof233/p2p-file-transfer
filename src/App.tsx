@@ -10,6 +10,7 @@ import * as connectionRequestAction from './store/connection/connectionRequestAc
 import { resetFileTransfers } from './store/file/fileActions'
 import { DataType, PeerConnection } from './helpers/peer'
 import { loadSettings } from './store/settings/settingsActions'
+import { clearAllTransferState } from './store/file/transferCoordinator'
 import './styles/globals.css'
 import './styles/animations.css'
 
@@ -38,6 +39,7 @@ export const App: React.FC = () => {
         } catch (e) {
             // Continue with state cleanup even if close fails
         }
+        clearAllTransferState()
         dispatch(stopPeerSession())
         dispatch(connectionAction.resetConnection())
         dispatch(resetFileTransfers())

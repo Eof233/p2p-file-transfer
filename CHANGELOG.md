@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-08-13
+
+### 🔐 Real End-to-End Encryption (Phase 1)
+
+The app previously claimed E2E encryption everywhere while sending plaintext.
+This release wires up real encryption:
+
+- **RSA-2048 / RSA-OAEP key exchange**: public keys + fingerprints travel as
+  PeerJS connection metadata; the connection initiator encrypts a fresh
+  AES-256-GCM session key with the receiver's public key (`KEY_EXCHANGE`).
+- **AES-256-GCM for content**: chat messages, typing indicators and every
+  file chunk are encrypted when a session key exists and the encryption
+  setting is enabled. Per-peer serial queue guarantees the session key is
+  installed before the first ciphertext is processed.
+- **Single encryption state**: new `EncryptionManager` singleton
+  (`src/services/encryptionService.ts`) replaces the per-component
+  `useEncryption` state (which generated 3 separate RSA key pairs).
+- **Manual key verification fixed**: the dialog previously compared local vs
+  remote fingerprints (always "mismatch"); it now shows both fingerprints for
+  out-of-band comparison with a "Fingerprints match" confirmation.
+- **Connection requests show the remote fingerprint** when available.
+
+### 🐛 Bug Fixes (Phase 1)
+
+- **Large-file receive confirmation** (>5MB) now actually works: receiver gets
+  an accept/reject dialog; new `FILE_ACCEPT` / `FILE_REJECT` protocol messages
+  gate the chunk flow.
+- **Cancel transfer now real**: cancelling stops the send loop at the next
+  chunk boundary and notifies the peer via `FILE_CANCEL`.
+- **Images use the chunked file protocol**: large base64 images no longer blow
+  the WebRTC message size limit; `ImageService.compressImage` is now used
+  before sending (max 1920px, JPEG 0.8).
+- **Typing indicator wired up**: the input now sends typing events; the
+  receiver auto-clears after 3s.
+- **Fixed `connectPeer` listener leak**: the `peer-unavailable` error handler
+  is now removed on every path (timeout/error/success).
+- **Stale connection requests** are removed when the peer disconnects before
+  acceptance.
+- **Incoming data race fixed**: data arriving before handler registration is
+  buffered per peer (the key exchange message can no longer be missed).
+- **Deduplicated `handleReceivedData`**: the ~200-line handler duplicated in
+  `connectionActions.ts` and `connectionRequestActions.ts` is now a single
+  shared module (`src/store/connection/receiveData.ts`).
+- **Send backpressure**: the sender pauses when the data channel buffers more
+  than 1MB.
+- **Session-stop cleanup** clears transfer state, session keys and receive
+  queues; `startPeer` guards against double start and surfaces errors.
+
+#### Files Changed (highlights)
+- [x] `src/services/encryptionService.ts` — new EncryptionManager singleton
+- [x] `src/store/connection/receiveData.ts` — new shared receive pipeline
+- [x] `src/store/file/transferCoordinator.ts` — new transfer protocol state
+- [x] `src/helpers/peer.ts` — metadata, data buffering, leak fixes
+- [x] `src/store/{chat,file,peer,connection}/*` — protocol + encrypted send
+- [x] `src/hooks/useEncryption.ts` — singleton subscription
+- [x] `src/hooks/useFileTransfer.ts` — accept/cancel/backpressure/encryption
+- [x] `src/components/{chat,connection,security}/*` — dialog wiring
+- [x] `src/utils/i18n.ts` — new keys
+
+### Known Limitations (still open)
+
+- File metadata (name/size) and protocol control messages are plaintext;
+  only content bytes are encrypted.
+- No chunk-level retransmission: a lost chunk fails the transfer.
+- Message status stays sent/delivered (no read receipts).
+- Auto-reconnect covers the signaling layer only; data channels are not
+  re-established yet.
+
+---
+
 ## [1.0.7] - 2026-08-10
 
 ### 🐛 Bug Fix: Real-time File Transfer Display

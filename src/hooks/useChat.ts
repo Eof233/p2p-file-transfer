@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
 import { ChatMessage } from '../store/chat/chatTypes'
-import { sendMessage, clearChatMessages } from '../store/chat/chatActions'
+import { sendMessage, sendTyping, clearChatMessages } from '../store/chat/chatActions'
 import { createLogger } from '../services/logService'
 
 const log = createLogger('useChat')
@@ -9,13 +9,12 @@ const log = createLogger('useChat')
 export const useChat = (peerId?: string) => {
     const dispatch = useAppDispatch()
 
-    // chat slice is not yet registered in the store; cast to access the expected shape
-    const messages = useAppSelector((state: any) =>
-        peerId ? (state.chat?.messages?.[peerId] as ChatMessage[] | undefined) ?? [] : []
+    const messages = useAppSelector((state) =>
+        peerId ? (state.chat.messages[peerId] as ChatMessage[] | undefined) ?? [] : []
     )
 
-    const typing = useAppSelector((state: any) =>
-        peerId ? (state.chat?.typing?.[peerId] as boolean | undefined) ?? false : false
+    const typing = useAppSelector((state) =>
+        peerId ? (state.chat.typing[peerId] as boolean | undefined) ?? false : false
     )
 
     const myId = useAppSelector((state) => state.peer.id)
@@ -25,6 +24,14 @@ export const useChat = (peerId?: string) => {
             if (!peerId) return
             log.debug('Sending message, type: ' + type + ', to peer: ' + peerId)
             dispatch(sendMessage(peerId, content, type, additionalData) as any)
+        },
+        [peerId, dispatch],
+    )
+
+    const setTyping = useCallback(
+        (isTyping: boolean) => {
+            if (!peerId) return
+            dispatch(sendTyping(peerId, isTyping) as any)
         },
         [peerId, dispatch],
     )
@@ -40,6 +47,7 @@ export const useChat = (peerId?: string) => {
         typing,
         myId,
         sendMessage: sendChatMessage,
+        setTyping,
         clearMessages,
     }
 }

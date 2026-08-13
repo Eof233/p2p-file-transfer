@@ -23,16 +23,47 @@ export interface Data {
     transferId?: string
     chunkIndex?: number
     totalChunks?: number
+    // E2E encryption fields: ciphertext travels base64-encoded in `payload`
     encrypted?: boolean
+    iv?: string
+    payload?: string
+    // Key exchange
     keyData?: string
+    // File protocol: distinguishes plain files from inline images
+    messageType?: 'file' | 'image'
 }
 
 let peer: Peer | undefined
 let connectionMap: Map<string, DataConnection> = new Map<string, DataConnection>()
+let peerMetadataMap: Map<string, unknown> = new Map<string, unknown>()
 let incomingConnectionCallback: ((conn: DataConnection) => void) | undefined
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 5
 let reconnectTimeout: ReturnType<typeof setTimeout> | undefined
+
+// Data handlers are registered asynchronously (after 'open'), but messages
+// can arrive in the window before registration. Buffer them per peer and
+// flush when the handler is attached.
+const receiveCallbacks: Map<string, (f: Data) => void> = new Map<string, (f: Data) => void>()
+const incomingDataBuffers: Map<string, Data[]> = new Map<string, Data[]>()
+
+const attachBufferedDataListener = (conn: DataConnection, peerId: string) => {
+    incomingDataBuffers.set(peerId, [])
+    conn.on('data', (raw) => {
+        const data = raw as Data
+        const cb = receiveCallbacks.get(peerId)
+        if (cb) {
+            cb(data)
+        } else {
+            incomingDataBuffers.get(peerId)?.push(data)
+        }
+    })
+}
+
+const cleanupDataHandler = (peerId: string) => {
+    receiveCallbacks.delete(peerId)
+    incomingDataBuffers.delete(peerId)
+}
 
 // Connection timeout in milliseconds
 const CONNECTION_TIMEOUT = 30000
@@ -49,6 +80,7 @@ const ICE_SERVERS = [
 export const PeerConnection = {
     getPeer: () => peer,
     getConnectionMap: () => connectionMap,
+    getPeerMetadata: (id: string) => peerMetadataMap.get(id),
 
     startPeerSession: () => new Promise<string>((resolve, reject) => {
         log.info('Starting peer session')
@@ -101,9 +133,14 @@ export const PeerConnection = {
                 log.info('Incoming connection: ' + conn.peer)
                 const peerId = conn.peer
 
+                // Start buffering data immediately: the KEY_EXCHANGE message
+                // may arrive before the async handler registration below.
+                attachBufferedDataListener(conn, peerId)
+
                 const handleOpen = () => {
                     log.debug('Incoming connection opened: ' + peerId)
                     connectionMap.set(peerId, conn)
+                    peerMetadataMap.set(peerId, conn.metadata)
                     if (incomingConnectionCallback) {
                         incomingConnectionCallback(conn)
                     }
@@ -124,6 +161,8 @@ export const PeerConnection = {
                 conn.on('close', () => {
                     log.info('Incoming connection closed: ' + peerId)
                     connectionMap.delete(peerId)
+                    peerMetadataMap.delete(peerId)
+                    cleanupDataHandler(peerId)
                 })
             })
         } catch (err) {
@@ -146,6 +185,9 @@ export const PeerConnection = {
                     conn.close()
                 })
                 connectionMap.clear()
+                peerMetadataMap.clear()
+                receiveCallbacks.clear()
+                incomingDataBuffers.clear()
                 peer.destroy()
                 peer = undefined
             }
@@ -156,7 +198,7 @@ export const PeerConnection = {
         }
     }),
 
-    connectPeer: (id: string) => new Promise<void>((resolve, reject) => {
+    connectPeer: (id: string, metadata?: unknown) => new Promise<void>((resolve, reject) => {
         log.info('Connecting to peer: ' + id)
         if (!peer) {
             log.error('Cannot connect: peer session not started')
@@ -172,22 +214,52 @@ export const PeerConnection = {
         let resolved = false
         let timeoutId: ReturnType<typeof setTimeout> | undefined
 
+        const handlePeerError = (err: PeerError<`${PeerErrorType}`>) => {
+            if (resolved) return
+            if (err.type === 'peer-unavailable') {
+                const messageSplit = err.message.split(' ')
+                const peerId = messageSplit[messageSplit.length - 1]
+                if (id === peerId) {
+                    resolved = true
+                    if (timeoutId) clearTimeout(timeoutId)
+                    log.error('Peer unavailable: ' + peerId)
+                    peerMetadataMap.delete(id)
+                    peer?.removeListener('error', handlePeerError)
+                    reject(err)
+                }
+            }
+        }
+
+        const cleanupPeerErrorListener = () => {
+            peer?.removeListener('error', handlePeerError)
+        }
+
         try {
-            let conn = peer.connect(id, { reliable: true })
+            let conn = peer.connect(id, { reliable: true, metadata })
             if (!conn) {
                 log.error('Failed to create connection to peer: ' + id)
                 reject(new Error("Connection can't be established"))
                 return
             }
 
+            // Buffer early data before the handler is registered after open
+            attachBufferedDataListener(conn, id)
+
             // Set up timeout
             timeoutId = setTimeout(() => {
                 if (!resolved) {
                     resolved = true
                     log.warn('Connection timeout for peer: ' + id)
-                    // Clean up the connection if it's still pending
+                    // Clean up the half-open connection and its error listener
                     if (connectionMap.has(id)) {
                         connectionMap.delete(id)
+                    }
+                    peerMetadataMap.delete(id)
+                    cleanupPeerErrorListener()
+                    try {
+                        conn.close()
+                    } catch (e) {
+                        log.warn('Failed to close timed-out connection', e)
                     }
                     reject(new Error("Connection timeout"))
                 }
@@ -200,6 +272,7 @@ export const PeerConnection = {
 
                 log.debug('Successfully connected to peer: ' + id)
                 connectionMap.set(id, conn)
+                peerMetadataMap.set(id, conn.metadata)
                 peer?.removeListener('error', handlePeerError)
                 resolve()
             })
@@ -210,6 +283,7 @@ export const PeerConnection = {
                 if (timeoutId) clearTimeout(timeoutId)
 
                 log.error('Connection error for peer: ' + id, err)
+                peerMetadataMap.delete(id)
                 peer?.removeListener('error', handlePeerError)
                 reject(err)
             })
@@ -217,22 +291,10 @@ export const PeerConnection = {
             conn.on('close', function () {
                 log.info('Connection closed: ' + id)
                 connectionMap.delete(id)
+                peerMetadataMap.delete(id)
+                cleanupDataHandler(id)
             })
 
-            const handlePeerError = (err: PeerError<`${PeerErrorType}`>) => {
-                if (resolved) return
-                if (err.type === 'peer-unavailable') {
-                    const messageSplit = err.message.split(' ')
-                    const peerId = messageSplit[messageSplit.length - 1]
-                    if (id === peerId) {
-                        resolved = true
-                        if (timeoutId) clearTimeout(timeoutId)
-                        log.error('Peer unavailable: ' + peerId)
-                        peer?.removeListener('error', handlePeerError)
-                        reject(err)
-                    }
-                }
-            }
             peer.on('error', handlePeerError);
 
         } catch (err) {
@@ -299,11 +361,13 @@ export const PeerConnection = {
         }
         let conn = connectionMap.get(id)
         if (conn) {
-            conn.on('data', function (receivedData) {
-                let data = receivedData as Data
-                log.debug('Received data from peer: ' + id + ', type: ' + data.dataType)
-                callback(data)
-            })
+            // Register the callback and flush anything buffered before it
+            receiveCallbacks.set(id, callback)
+            const buffered = incomingDataBuffers.get(id)
+            if (buffered) {
+                incomingDataBuffers.delete(id)
+                buffered.forEach((data) => callback(data))
+            }
             log.debug('Data handler registered for peer: ' + id)
         }
     },
@@ -317,6 +381,8 @@ export const PeerConnection = {
             }
             connectionMap.delete(id)
         }
+        peerMetadataMap.delete(id)
+        cleanupDataHandler(id)
     },
 
     isConnected: (id: string): boolean => {

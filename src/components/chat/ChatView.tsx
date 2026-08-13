@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { ScrollArea } from '../ui/ScrollArea'
 import { MessageBubble } from './MessageBubble'
 import { MessageInput } from './MessageInput'
@@ -6,10 +6,12 @@ import { TypingIndicator } from './TypingIndicator'
 import { ImagePreviewModal } from './ImagePreviewModal'
 import { KeyVerificationDialog } from '../security/KeyVerificationDialog'
 import { ConnectionInfo } from './ConnectionInfo'
+import { FileTransferDialog } from '../file/FileTransferDialog'
 import { useChat } from '../../hooks/useChat'
 import { useFileTransfer } from '../../hooks/useFileTransfer'
 import { useEncryption } from '../../hooks/useEncryption'
 import { useI18n } from '../../hooks/useI18n'
+import { ImageService } from '../../services/imageService'
 
 interface ChatViewProps {
     peerId: string
@@ -17,8 +19,8 @@ interface ChatViewProps {
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
-    const { messages, typing, myId, sendMessage, clearMessages } = useChat(peerId)
-    const { sendFile } = useFileTransfer()
+    const { messages, typing, myId, sendMessage, setTyping, clearMessages } = useChat(peerId)
+    const { sendFile, acceptFile, rejectFile, pendingFiles } = useFileTransfer()
     const {
         fingerprint,
         hasSessionKey,
@@ -31,26 +33,41 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
     const [verifyDialogOpen, setVerifyDialogOpen] = useState(false)
     const [previewImage, setPreviewImage] = useState<string | null>(null)
 
+    // Incoming files from this peer awaiting acceptance
+    const incomingPendingFile = useMemo(
+        () => pendingFiles.find(f => f.peerId === peerId) || null,
+        [pendingFiles, peerId],
+    )
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
-    const handleSendMessage = (content: string) => {
+    const handleSendMessage = useCallback((content: string) => {
         sendMessage(content, 'text')
-    }
+    }, [sendMessage])
 
-    const handleSendFile = (file: File) => {
-        sendFile(file)
-    }
+    const handleSendFile = useCallback((file: File) => {
+        sendFile(file).catch(() => {})
+    }, [sendFile])
 
-    const handleSendImage = (file: File) => {
-        // Convert to base64 and send inline
-        const reader = new FileReader()
-        reader.onload = () => {
-            sendMessage(reader.result as string, 'image', { imageData: reader.result as string })
+    const handleSendImage = useCallback(async (file: File) => {
+        // Compress before sending, then transfer via the chunked file protocol
+        // (single-message base64 breaks the data channel size limit).
+        try {
+            const compressed = await ImageService.compressImage(file)
+            const preview = await ImageService.fileToBase64(compressed)
+            await sendFile(compressed, { chatType: 'image', previewData: preview })
+        } catch (err) {
+            // Fall back to the raw file if compression fails
+            const preview = await ImageService.fileToBase64(file)
+            await sendFile(file, { chatType: 'image', previewData: preview })
         }
-        reader.readAsDataURL(file)
-    }
+    }, [sendFile])
+
+    const handleTyping = useCallback((isTyping: boolean) => {
+        setTyping(isTyping)
+    }, [setTyping])
 
     // Encryption state for this peer
     const isEncrypted = hasSessionKey(peerId)
@@ -142,7 +159,23 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
                 onSendMessage={handleSendMessage}
                 onSendFile={handleSendFile}
                 onSendImage={handleSendImage}
+                onTyping={handleTyping}
             />
+
+            {/* Incoming file confirmation dialog */}
+            {incomingPendingFile && (
+                <FileTransferDialog
+                    open={true}
+                    onOpenChange={() => {}}
+                    fileName={incomingPendingFile.fileName}
+                    fileSize={incomingPendingFile.fileSize}
+                    fileType={incomingPendingFile.fileType}
+                    peerId={peerId}
+                    direction="receive"
+                    onAccept={() => acceptFile(incomingPendingFile.id)}
+                    onReject={() => rejectFile(incomingPendingFile.id)}
+                />
+            )}
 
             {/* Key Verification Dialog */}
             {fingerprint && remoteFingerprint && (

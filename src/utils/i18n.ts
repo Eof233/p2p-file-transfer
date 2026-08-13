@@ -77,7 +77,7 @@ export interface Translations {
     yourFingerprint: string
     peerFingerprint: string
     keysVerified: string
-    keysMismatch: string
+    keysMatch: string
     close: string
 
     // Connection Request
@@ -182,7 +182,7 @@ const en: Translations = {
     yourFingerprint: 'Your Fingerprint',
     peerFingerprint: 'Peer Fingerprint',
     keysVerified: 'Keys verified - Connection is secure',
-    keysMismatch: 'Keys do not match - Connection may not be secure',
+    keysMatch: 'Fingerprints match',
     close: 'Close',
 
     connectionRequest: 'Connection Request',
@@ -284,7 +284,7 @@ const zh: Translations = {
     yourFingerprint: '你的指纹',
     peerFingerprint: '对方指纹',
     keysVerified: '密钥已验证 - 连接安全',
-    keysMismatch: '密钥不匹配 - 连接可能不安全',
+    keysMatch: '指纹一致',
     close: '关闭',
 
     connectionRequest: '连接请求',

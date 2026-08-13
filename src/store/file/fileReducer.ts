@@ -49,6 +49,18 @@ export const FileReducer: Reducer<FileState> = (state = initialState, action) =>
                 }
             }
         }
+        case FileActionType.FILE_TRANSFER_ACCEPT: {
+            const {id} = action
+            const existing = state.transfers[id]
+            if (!existing) return state
+            return {
+                ...state,
+                transfers: {
+                    ...state.transfers,
+                    [id]: {...existing, status: 'transferring', progress: 0}
+                }
+            }
+        }
         case FileActionType.FILE_TRANSFER_ERROR: {
             const {id, error} = action
             const existing = state.transfers[id]

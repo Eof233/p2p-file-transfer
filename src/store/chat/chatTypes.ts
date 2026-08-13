@@ -3,6 +3,7 @@ export enum ChatActionType {
     CHAT_HISTORY_SET = 'CHAT_HISTORY_SET',
     CHAT_TYPING_SET = 'CHAT_TYPING_SET',
     CHAT_MESSAGES_CLEAR = 'CHAT_MESSAGES_CLEAR',
+    CHAT_MESSAGE_UPDATE = 'CHAT_MESSAGE_UPDATE',
 }
 
 export interface ChatMessage {

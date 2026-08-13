@@ -4,6 +4,7 @@ import { ChatMessage } from '../../store/chat/chatTypes'
 import { FileTransfer } from '../../store/file/fileTypes'
 import { formatTime } from '../../utils/formatters'
 import { useAppSelector } from '../../store/hooks'
+import { useFileTransfer } from '../../hooks/useFileTransfer'
 import { FileMessage } from './FileMessage'
 
 interface MessageBubbleProps {
@@ -14,6 +15,8 @@ interface MessageBubbleProps {
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, showAvatar = true, onImageClick }) => {
+    const { cancelTransfer } = useFileTransfer()
+
     const statusIcons = {
         sent: '✓',
         delivered: '✓✓',
@@ -21,11 +24,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, sh
     }
 
     // Look up file transfer progress if this message has a transferId
-    const transfer = useAppSelector((state: any) =>
+    const transfer = useAppSelector((state) =>
         message.transferId
-            ? (state.file?.transfers as Record<string, FileTransfer> | undefined)?.[message.transferId]
+            ? (state.file.transfers as Record<string, FileTransfer> | undefined)?.[message.transferId]
             : undefined
     )
+
+    const showTransferCard =
+        message.type === 'file' ||
+        (message.type === 'image' && !message.imageData)
 
     return (
         <div className={`flex gap-2 animate-message-in ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -56,16 +63,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, sh
                             </div>
                         </div>
                     )}
-                    {message.type === 'file' && message.fileName && (
+                    {showTransferCard && (
                         <FileMessage
-                            fileName={message.fileName}
+                            fileName={message.fileName || (message.type === 'image' ? 'Image' : 'File')}
                             fileSize={message.fileSize || 0}
                             fileType={message.fileType || 'application/octet-stream'}
                             progress={transfer?.progress}
                             speed={transfer?.speed}
                             isOwn={isOwn}
                             status={transfer?.status}
+                            error={transfer?.error}
                             blob={transfer?.blob}
+                            onCancel={message.transferId ? () => cancelTransfer(message.transferId!) : undefined}
                         />
                     )}
                     {message.type === 'text' && (
