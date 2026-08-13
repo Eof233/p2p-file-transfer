@@ -36,8 +36,8 @@ export interface Data {
 }
 
 let peer: Peer | undefined
-let connectionMap: Map<string, DataConnection> = new Map<string, DataConnection>()
-let peerMetadataMap: Map<string, unknown> = new Map<string, unknown>()
+const connectionMap: Map<string, DataConnection> = new Map<string, DataConnection>()
+const peerMetadataMap: Map<string, unknown> = new Map<string, unknown>()
 let incomingConnectionCallback: ((conn: DataConnection) => void) | undefined
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 5
@@ -237,7 +237,7 @@ export const PeerConnection = {
         }
 
         try {
-            let conn = peer.connect(id, { reliable: true, metadata })
+            const conn = peer.connect(id, { reliable: true, metadata })
             if (!conn) {
                 log.error('Failed to create connection to peer: ' + id)
                 reject(new Error("Connection can't be established"))
@@ -318,7 +318,7 @@ export const PeerConnection = {
         if (!connectionMap.has(id)) {
             return
         }
-        let conn = connectionMap.get(id)
+        const conn = connectionMap.get(id)
         if (conn) {
             conn.on('close', function () {
                 log.info('Connection closed: ' + id)
@@ -336,7 +336,7 @@ export const PeerConnection = {
             return
         }
         try {
-            let conn = connectionMap.get(id)
+            const conn = connectionMap.get(id)
             if (conn) {
                 if (!conn.open) {
                     log.error('Cannot send: connection not open for peer: ' + id)
@@ -361,7 +361,7 @@ export const PeerConnection = {
             log.warn('Cannot set up data handler: connection not found for peer: ' + id)
             return
         }
-        let conn = connectionMap.get(id)
+        const conn = connectionMap.get(id)
         if (conn) {
             // Register the callback and flush anything buffered before it
             receiveCallbacks.set(id, callback)

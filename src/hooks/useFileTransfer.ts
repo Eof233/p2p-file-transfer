@@ -23,6 +23,8 @@ import { ChatMessage } from '../store/chat/chatTypes'
 import { DataType, PeerConnection } from '../helpers/peer'
 import { FileService } from '../services/fileService'
 import { encryptionManager } from '../services/encryptionService'
+import { validateFile } from '../utils/validators'
+import { formatFileSize } from '../utils/formatters'
 import { createLogger } from '../services/logService'
 
 const log = createLogger('useFileTransfer')
@@ -62,6 +64,7 @@ export const useFileTransfer = () => {
     )
 
     const encryptionEnabled = useAppSelector((state) => state.settings.encryptionEnabled)
+    const maxFileSize = useAppSelector((state) => state.settings.maxFileSize)
     const selectedPeerId = useAppSelector((state) => state.connection.selectedId)
     const myId = useAppSelector((state) => state.peer.id)
 
@@ -69,6 +72,11 @@ export const useFileTransfer = () => {
         async (file: File, options?: SendFileOptions) => {
             if (!selectedPeerId) {
                 throw new Error('No peer selected')
+            }
+
+            // Enforce the configured size limit before doing any work
+            if (maxFileSize > 0 && !validateFile(file, maxFileSize).valid) {
+                throw new Error(`File exceeds the ${formatFileSize(maxFileSize)} limit`)
             }
 
             log.info('Sending file: ' + file.name + ', size: ' + file.size + ' bytes')
@@ -247,7 +255,7 @@ export const useFileTransfer = () => {
                 }).catch(() => {})
             }
         },
-        [selectedPeerId, myId, dispatch, encryptionEnabled],
+        [selectedPeerId, myId, dispatch, encryptionEnabled, maxFileSize],
     )
 
     const acceptFile = useCallback(

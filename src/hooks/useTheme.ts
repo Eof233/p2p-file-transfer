@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
 import { SettingsActionType, Theme } from '../store/settings/settingsTypes'
+import { STORAGE_KEYS } from '../utils/constants'
 
 export const useTheme = () => {
     const dispatch = useAppDispatch()
@@ -43,10 +44,10 @@ export const useTheme = () => {
         dispatch({ type: SettingsActionType.SETTINGS_THEME_SET, theme: newTheme })
         // Save to localStorage
         try {
-            const stored = localStorage.getItem('p2p-messenger-settings')
+            const stored = localStorage.getItem(STORAGE_KEYS.SETTINGS)
             const settings = stored ? JSON.parse(stored) : {}
             settings.theme = newTheme
-            localStorage.setItem('p2p-messenger-settings', JSON.stringify(settings))
+            localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings))
         } catch {}
     }, [dispatch])
 

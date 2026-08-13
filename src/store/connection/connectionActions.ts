@@ -4,12 +4,13 @@ import { DataType, PeerConnection } from "../../helpers/peer";
 import { handleReceivedData, clearReceiveQueue } from "./receiveData";
 import { sendReadReceipts } from "../chat/chatActions";
 import { encryptionManager } from "../../services/encryptionService";
+import { STORAGE_KEYS } from "../../utils/constants";
 import { createLogger } from "../../services/logService";
 
 const log = createLogger('ConnectionActions')
 
 /** localStorage key for recent peer IDs (shared with the settings storage). */
-const CONNECTION_HISTORY_KEY = 'p2p-messenger-connections'
+const CONNECTION_HISTORY_KEY = STORAGE_KEYS.CONNECTION_HISTORY
 const MAX_HISTORY_ENTRIES = 10
 
 interface PeerMetadata {

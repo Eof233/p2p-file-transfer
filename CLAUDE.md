@@ -8,6 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev           # Vite dev server (port 3000)
 npm run build         # Production build (tsc && vite build)
 npm run preview       # Preview production build
+npm test              # Run unit tests once (Vitest, Node env)
+npm run test:watch    # Vitest watch mode
+npm run lint          # ESLint 9 (flat config)
 npm run tauri:dev     # Tauri desktop dev (Rust required)
 npm run tauri:build   # Tauri desktop build (Tauri 1.x, NOT 2.x)
 npm run deploy        # Build + deploy to GitHub Pages (gh-pages -d dist)
@@ -87,19 +90,25 @@ request dialog.
   and persists to localStorage key `p2p-messenger-connections`.
 - **Notifications** fire only when `notificationsEnabled` and the document is
   hidden; permission is requested when the setting is enabled.
+- **Toast feedback** goes through the `toast()` bus in
+  `src/services/toastService.ts`; the App renders the Radix viewport. Use it
+  for errors/confirmations instead of adding new UI.
+- **File size limit** (`settings.maxFileSize`) is enforced in
+  `useFileTransfer.sendFile`; oversized files throw and surface as a toast.
 - **Radix UI + Tailwind**, no Ant Design. Theme tokens are CSS variables in
   `src/styles/globals.css`; i18n keys live in `src/utils/i18n.ts` (en/zh).
 - **No backend** — the only external dependency is PeerJS's signaling server.
-- No routing, no tests yet, no ESLint/Prettier config.
+- No routing. Tests live in `__tests__/` dirs (53 tests); CI runs lint+test
+  before every build.
 
-## Known Issues (as of 1.1.0)
+## Known Issues (as of 1.2.0)
 
 - Protocol control messages (FILE_ACCEPT/CANCEL/…) are plaintext; metadata
   and content are encrypted.
 - No pause/resume across sessions; retransmission is per-transfer only.
 - Read receipts are best-effort (no retry queue).
 - Auto-reconnect covers the signaling layer only; data channels are not
-  re-established. Tauri is 1.x while README/PRD mention 2.x; no system
+  re-established. Tauri is 1.x while PRD mentions 2.x; no system
   tray/auto-updater.
-- Some dead code remains: `usePeer`, `useAsyncState`, `validators.ts`,
-  unused constants, `FilePreview`, `TransferProgress`, Toast components.
+- Remaining dead code: `SecuritySettings` component, `settingsActions.setTheme`
+  / `saveSettings`, `ChatMessage.status` on receiver-side never shown.

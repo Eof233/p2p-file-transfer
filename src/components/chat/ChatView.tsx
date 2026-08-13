@@ -12,6 +12,7 @@ import { useFileTransfer } from '../../hooks/useFileTransfer'
 import { useEncryption } from '../../hooks/useEncryption'
 import { useI18n } from '../../hooks/useI18n'
 import { ImageService } from '../../services/imageService'
+import { toast } from '../../services/toastService'
 
 interface ChatViewProps {
     peerId: string
@@ -50,8 +51,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
     }, [sendMessage])
 
     const handleSendFile = useCallback((file: File) => {
-        sendFile(file).catch(() => {})
-    }, [sendFile])
+        sendFile(file).catch((err: Error) => {
+            toast({ title: t.sendFileError, description: err?.message, variant: 'error' })
+        })
+    }, [sendFile, t.sendFileError])
 
     const handleSendImage = useCallback(async (file: File) => {
         // Compress before sending, then transfer via the chunked file protocol
@@ -60,12 +63,20 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
             const compressed = await ImageService.compressImage(file)
             const preview = await ImageService.fileToBase64(compressed)
             await sendFile(compressed, { chatType: 'image', previewData: preview })
-        } catch (err) {
+        } catch {
             // Fall back to the raw file if compression fails
             const preview = await ImageService.fileToBase64(file)
             await sendFile(file, { chatType: 'image', previewData: preview })
         }
     }, [sendFile])
+
+    const handleSendImageWithToast = useCallback(async (file: File) => {
+        try {
+            await handleSendImage(file)
+        } catch (err: any) {
+            toast({ title: t.sendFileError, description: err?.message, variant: 'error' })
+        }
+    }, [handleSendImage, t.sendFileError])
 
     const handleTyping = useCallback((isTyping: boolean) => {
         setTyping(isTyping)
@@ -100,12 +111,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
 
         for (const file of files) {
             if (file.type.startsWith('image/')) {
-                handleSendImage(file)
+                handleSendImageWithToast(file)
             } else {
                 handleSendFile(file)
             }
         }
-    }, [handleSendFile, handleSendImage])
+    }, [handleSendFile, handleSendImageWithToast])
 
     // Encryption state for this peer
     const isEncrypted = hasSessionKey(peerId)
@@ -216,7 +227,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
             <MessageInput
                 onSendMessage={handleSendMessage}
                 onSendFile={handleSendFile}
-                onSendImage={handleSendImage}
+                onSendImage={handleSendImageWithToast}
                 onTyping={handleTyping}
             />
 

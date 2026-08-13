@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-13
+
+### 🛠️ Phase 3: Engineering Foundation
+
+- **Unit tests (Vitest)**: 53 tests across 8 suites covering cryptoService
+  (RSA/AES round trips, tamper rejection, key exchange), EncryptionManager,
+  fileService (chunking/reassembly/validation), transferCoordinator
+  (accept/end waiters, timeouts, cleanup), chat/file reducers, formatters and
+  validators. Runs in Node with minimal browser shims.
+- **ESLint 9** (flat config, typescript-eslint + react-hooks): `npm run lint`
+  is clean; `no-unused-vars` and rules-of-hooks enforced.
+- **CI**: `deploy.yml` and `build.yml` now run lint + tests before building;
+  typecheck is part of `npm run build`.
+- **Dead code removed**: `usePeer`, `useAsyncState`, `runtimeConfig.ts`
+  (incl. the `window.store` debug global), `FilePreview`, `TransferProgress`,
+  `setupTests.ts`, and unused constants (`PEER_CONFIG`, `CHUNK_SIZE`,
+  `ANIMATION_DURATION`, `SIDEBAR_WIDTH`, `HEADER_HEIGHT`).
+- **Unused constants wired up**: `MAX_FILE_SIZE_DEFAULT` (settings default),
+  `MAX_MESSAGE_LENGTH` (input limit), `STORAGE_KEYS` (settings + history).
+- **Toast system**: the previously dead `Toast` component is now a live
+  pub/sub bus (`src/services/toastService.ts`). Copy ID, connection
+  accept/reject, session-start errors and file-send errors surface as toasts.
+- **File size limit enforced**: `settings.maxFileSize` now actually blocks
+  oversized files with a toast error.
+- **Docs**: README rewritten to match reality (Tauri 1.x, no tray/auto-update
+  claims, real feature list, test/lint commands).
+
+#### Files Changed (highlights)
+- [x] `vitest.config.ts`, `vitest.setup.ts`, `eslint.config.js` — new tooling
+- [x] `src/**/__tests__/*.test.ts` — 8 new suites
+- [x] `src/services/toastService.ts` — new toast bus
+- [x] `src/App.tsx` — toast viewport + feedback toasts
+- [x] `.github/workflows/{deploy,build}.yml` — lint + test steps
+- [x] Deletions: `FilePreview`, `TransferProgress`, `usePeer`, `useAsyncState`,
+  `runtimeConfig`, `setupTests`
+
+---
+
 ## [1.1.0] - 2026-08-13
 
 ### 🚀 Phase 2: Reliability & UX

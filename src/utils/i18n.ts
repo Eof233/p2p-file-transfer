@@ -8,6 +8,7 @@ export interface Translations {
     stop: string
     settings: string
     copyId: string
+    sessionError: string
 
     // Sidebar
     chats: string
@@ -121,6 +122,7 @@ const en: Translations = {
     stop: 'Stop',
     settings: 'Settings',
     copyId: 'Copy ID',
+    sessionError: 'Failed to start session',
 
     chats: 'Chats',
     noConnections: 'No connections yet',
@@ -225,6 +227,7 @@ const zh: Translations = {
     stop: '停止',
     settings: '设置',
     copyId: '复制 ID',
+    sessionError: '会话启动失败',
 
     chats: '聊天',
     noConnections: '暂无连接',

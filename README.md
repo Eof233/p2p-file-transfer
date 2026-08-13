@@ -7,28 +7,29 @@ Secure, peer-to-peer communication tool with end-to-end encryption. Send message
 ### Messaging
 - Real-time text chat via WebRTC data channels
 - Typing indicators
-- Message status (sent/delivered/read)
-- Inline image display with click-to-preview
-- File transfer with progress tracking and speed display
+- Message status (sent/delivered/read receipts)
+- Inline image display with click-to-preview (auto-compressed before send)
+- File transfer with progress, speed, cancel, and chunk retransmission
+- Drag & drop files onto the chat to send them
 
 ### Security
-- End-to-end encryption (AES-256-GCM + RSA-2048)
-- RSA-OAEP key exchange
-- Fingerprint verification
+- End-to-end encryption (AES-256-GCM + RSA-2048, RSA-OAEP key exchange)
+- Encrypted file metadata and content (chunked)
+- Manual fingerprint verification per peer
 - No server storage - all data stays on your devices
 
 ### Connection
 - Peer ID-based connection system
-- Accept/reject incoming connection requests
+- Accept/reject incoming connection requests (with remote fingerprint)
 - Connection quality monitoring (latency, IP, data stats)
-- Automatic reconnection with exponential backoff
+- Recent-connections history (localStorage) for quick reconnect
+- Automatic signaling reconnection with exponential backoff
 - NAT traversal via STUN servers
 
-### Desktop App (Tauri)
-- Native performance on Windows, macOS, Linux
-- Apple Silicon (M1/M2/M3) support
-- System tray integration
-- Auto-update support
+### Desktop & UX
+- Optional Tauri 1.x shell for Windows, macOS (incl. Apple Silicon), Linux
+- Desktop notifications for messages while the app is hidden
+- Light/dark/system themes, English/Chinese UI, reduced-motion support
 
 ## Tech Stack
 
@@ -37,10 +38,12 @@ Secure, peer-to-peer communication tool with end-to-end encryption. Send message
 | Framework | React 18 + TypeScript |
 | State | Redux Toolkit |
 | P2P | PeerJS (WebRTC) |
-| Desktop | Tauri 2.x |
+| Desktop | Tauri 1.x (optional shell) |
 | UI | Radix UI + Tailwind CSS |
 | Encryption | Web Crypto API |
 | Build | Vite 5 |
+| Tests | Vitest |
+| Lint | ESLint 9 + typescript-eslint |
 
 ## Getting Started
 
@@ -108,8 +111,10 @@ src-tauri/            # Tauri desktop app backend (Rust)
 
 ```bash
 npm run dev           # Start Vite dev server
-npm run build         # Production build
+npm run build         # Production build (typecheck + Vite)
 npm run preview       # Preview production build
+npm test              # Run unit tests (Vitest)
+npm run lint          # Run ESLint
 npm run tauri:dev     # Start Tauri dev mode
 npm run tauri:build   # Build Tauri desktop app
 ```
@@ -124,6 +129,17 @@ const log = createLogger('MyModule')
 
 log.info('Operation completed', { data })
 log.error('Something failed', { details }, error)
+```
+
+### Testing
+
+Unit tests live next to the code under `__tests__/` directories. They run in
+Node with Vitest and cover the crypto/encryption services, the file transfer
+coordinator, reducers, and utilities.
+
+```bash
+npm test          # run once (CI)
+npm run test:watch  # watch mode
 ```
 
 ## CI/CD
