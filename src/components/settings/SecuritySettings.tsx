@@ -13,7 +13,6 @@ export const SecuritySettings: React.FC<SecuritySettingsProps> = ({ peerId }) =>
     const {
         fingerprint,
         hasSessionKey,
-        peerFingerprints,
         getRemoteFingerprint,
         markPeerVerified,
         isPeerVerified,

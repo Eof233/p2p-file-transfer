@@ -5,6 +5,159 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-13
+
+### 🛠️ Phase 3: Engineering Foundation
+
+- **Unit tests (Vitest)**: 53 tests across 8 suites covering cryptoService
+  (RSA/AES round trips, tamper rejection, key exchange), EncryptionManager,
+  fileService (chunking/reassembly/validation), transferCoordinator
+  (accept/end waiters, timeouts, cleanup), chat/file reducers, formatters and
+  validators. Runs in Node with minimal browser shims.
+- **ESLint 9** (flat config, typescript-eslint + react-hooks): `npm run lint`
+  is clean; `no-unused-vars` and rules-of-hooks enforced.
+- **CI**: `deploy.yml` and `build.yml` now run lint + tests before building;
+  typecheck is part of `npm run build`.
+- **Dead code removed**: `usePeer`, `useAsyncState`, `runtimeConfig.ts`
+  (incl. the `window.store` debug global), `FilePreview`, `TransferProgress`,
+  `setupTests.ts`, and unused constants (`PEER_CONFIG`, `CHUNK_SIZE`,
+  `ANIMATION_DURATION`, `SIDEBAR_WIDTH`, `HEADER_HEIGHT`).
+- **Unused constants wired up**: `MAX_FILE_SIZE_DEFAULT` (settings default),
+  `MAX_MESSAGE_LENGTH` (input limit), `STORAGE_KEYS` (settings + history).
+- **Toast system**: the previously dead `Toast` component is now a live
+  pub/sub bus (`src/services/toastService.ts`). Copy ID, connection
+  accept/reject, session-start errors and file-send errors surface as toasts.
+- **File size limit enforced**: `settings.maxFileSize` now actually blocks
+  oversized files with a toast error.
+- **Docs**: README rewritten to match reality (Tauri 1.x, no tray/auto-update
+  claims, real feature list, test/lint commands).
+
+#### Files Changed (highlights)
+- [x] `vitest.config.ts`, `vitest.setup.ts`, `eslint.config.js` — new tooling
+- [x] `src/**/__tests__/*.test.ts` — 8 new suites
+- [x] `src/services/toastService.ts` — new toast bus
+- [x] `src/App.tsx` — toast viewport + feedback toasts
+- [x] `.github/workflows/{deploy,build}.yml` — lint + test steps
+- [x] Deletions: `FilePreview`, `TransferProgress`, `usePeer`, `useAsyncState`,
+  `runtimeConfig`, `setupTests`
+
+---
+
+## [1.1.0] - 2026-08-13
+
+### 🚀 Phase 2: Reliability & UX
+
+- **Chunk retransmission**: after `FILE_END` the receiver verifies chunk
+  completeness and answers `FILE_COMPLETE` or `FILE_MISSING` (list of chunk
+  indexes). The sender retransmits missing chunks and re-signals end, up to 5
+  rounds. A lost chunk no longer silently kills large transfers.
+- **Encrypted file metadata**: `FILE_START` (name/size/type/message type) is
+  now AES-256-GCM encrypted when a session key exists. `FILE_END` no longer
+  repeats plaintext metadata.
+- **Message receipts**: receivers send `DELIVERED` on arrival and `READ` when
+  the conversation is open; opening a conversation sends catch-up read
+  receipts. Sender bubbles update ✓ → ✓✓ (accent color).
+- **Drag & drop**: drop one or many files onto the chat area to send them
+  (images are auto-compressed; non-images go through the file protocol).
+- **Connection history**: recent peer IDs persist in localStorage and appear
+  in the sidebar ("Recent") for one-click reconnect.
+- **Desktop notifications**: enabling notifications requests permission and
+  shows a notification for incoming messages while the app is hidden.
+- **Backpressure & progress**: progress is now chunk-count based (clamped to
+  100% across retransmissions).
+
+#### Files Changed (highlights)
+- [x] `src/store/file/transferCoordinator.ts` — end-answer waiters, round state
+- [x] `src/store/connection/receiveData.ts` — FILE_MISSING/COMPLETE, receipts, notifications, encrypted FILE_START
+- [x] `src/hooks/useFileTransfer.ts` — retransmission loop
+- [x] `src/store/chat/chatActions.ts` — sendReceipt / sendReadReceipts
+- [x] `src/store/connection/*` — history state + selectConnection thunk
+- [x] `src/components/sidebar/Sidebar.tsx` — recent contacts
+- [x] `src/components/chat/ChatView.tsx` — drag & drop overlay
+- [x] `src/components/settings/SettingsDialog.tsx` — notification permission
+- [x] `src/utils/i18n.ts` — dropFiles / recent
+
+### Known Limitations (still open)
+
+- Protocol control messages (FILE_ACCEPT/CANCEL/...) remain plaintext; only
+  metadata and content are encrypted.
+- No pause/resume across sessions; retransmission is per-transfer only.
+- Read receipts are best-effort (no retry queue).
+- Auto-reconnect covers the signaling layer only; data channels are not
+  re-established yet.
+
+---
+
+## [1.0.8] - 2026-08-13
+
+### 🔐 Real End-to-End Encryption (Phase 1)
+
+The app previously claimed E2E encryption everywhere while sending plaintext.
+This release wires up real encryption:
+
+- **RSA-2048 / RSA-OAEP key exchange**: public keys + fingerprints travel as
+  PeerJS connection metadata; the connection initiator encrypts a fresh
+  AES-256-GCM session key with the receiver's public key (`KEY_EXCHANGE`).
+- **AES-256-GCM for content**: chat messages, typing indicators and every
+  file chunk are encrypted when a session key exists and the encryption
+  setting is enabled. Per-peer serial queue guarantees the session key is
+  installed before the first ciphertext is processed.
+- **Single encryption state**: new `EncryptionManager` singleton
+  (`src/services/encryptionService.ts`) replaces the per-component
+  `useEncryption` state (which generated 3 separate RSA key pairs).
+- **Manual key verification fixed**: the dialog previously compared local vs
+  remote fingerprints (always "mismatch"); it now shows both fingerprints for
+  out-of-band comparison with a "Fingerprints match" confirmation.
+- **Connection requests show the remote fingerprint** when available.
+
+### 🐛 Bug Fixes (Phase 1)
+
+- **Large-file receive confirmation** (>5MB) now actually works: receiver gets
+  an accept/reject dialog; new `FILE_ACCEPT` / `FILE_REJECT` protocol messages
+  gate the chunk flow.
+- **Cancel transfer now real**: cancelling stops the send loop at the next
+  chunk boundary and notifies the peer via `FILE_CANCEL`.
+- **Images use the chunked file protocol**: large base64 images no longer blow
+  the WebRTC message size limit; `ImageService.compressImage` is now used
+  before sending (max 1920px, JPEG 0.8).
+- **Typing indicator wired up**: the input now sends typing events; the
+  receiver auto-clears after 3s.
+- **Fixed `connectPeer` listener leak**: the `peer-unavailable` error handler
+  is now removed on every path (timeout/error/success).
+- **Stale connection requests** are removed when the peer disconnects before
+  acceptance.
+- **Incoming data race fixed**: data arriving before handler registration is
+  buffered per peer (the key exchange message can no longer be missed).
+- **Deduplicated `handleReceivedData`**: the ~200-line handler duplicated in
+  `connectionActions.ts` and `connectionRequestActions.ts` is now a single
+  shared module (`src/store/connection/receiveData.ts`).
+- **Send backpressure**: the sender pauses when the data channel buffers more
+  than 1MB.
+- **Session-stop cleanup** clears transfer state, session keys and receive
+  queues; `startPeer` guards against double start and surfaces errors.
+
+#### Files Changed (highlights)
+- [x] `src/services/encryptionService.ts` — new EncryptionManager singleton
+- [x] `src/store/connection/receiveData.ts` — new shared receive pipeline
+- [x] `src/store/file/transferCoordinator.ts` — new transfer protocol state
+- [x] `src/helpers/peer.ts` — metadata, data buffering, leak fixes
+- [x] `src/store/{chat,file,peer,connection}/*` — protocol + encrypted send
+- [x] `src/hooks/useEncryption.ts` — singleton subscription
+- [x] `src/hooks/useFileTransfer.ts` — accept/cancel/backpressure/encryption
+- [x] `src/components/{chat,connection,security}/*` — dialog wiring
+- [x] `src/utils/i18n.ts` — new keys
+
+### Known Limitations (still open)
+
+- File metadata (name/size) and protocol control messages are plaintext;
+  only content bytes are encrypted.
+- No chunk-level retransmission: a lost chunk fails the transfer.
+- Message status stays sent/delivered (no read receipts).
+- Auto-reconnect covers the signaling layer only; data channels are not
+  re-established yet.
+
+---
+
 ## [1.0.7] - 2026-08-10
 
 ### 🐛 Bug Fix: Real-time File Transfer Display

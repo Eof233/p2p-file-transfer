@@ -10,7 +10,8 @@ export const ConnectionRequestReducer: Reducer<ConnectionRequestState> = (state 
         const request: ConnectionRequest = {
             peerId: action.peerId,
             timestamp: action.timestamp,
-            status: 'pending'
+            status: 'pending',
+            fingerprint: action.fingerprint,
         }
         return { ...state, requests: [...state.requests, request] }
     } else if (action.type === ConnectionRequestActionType.CONNECTION_REQUEST_ACCEPT) {
@@ -26,6 +27,11 @@ export const ConnectionRequestReducer: Reducer<ConnectionRequestState> = (state 
             requests: state.requests.map(r =>
                 r.peerId === action.peerId ? { ...r, status: 'rejected' as const } : r
             )
+        }
+    } else if (action.type === ConnectionRequestActionType.CONNECTION_REQUEST_REMOVE) {
+        return {
+            ...state,
+            requests: state.requests.filter(r => r.peerId !== action.peerId)
         }
     } else if (action.type === ConnectionRequestActionType.CONNECTION_REQUEST_CLEAR) {
         return {

@@ -11,7 +11,9 @@ interface FileMessageProps {
     speed?: number  // bytes per second
     isOwn: boolean
     status?: 'pending' | 'transferring' | 'completed' | 'cancelled' | 'error'
+    error?: string
     blob?: Blob  // received file blob for download
+    onCancel?: () => void
 }
 
 const getFileIcon = (fileType: string) => {
@@ -62,11 +64,13 @@ const getFileIcon = (fileType: string) => {
 }
 
 export const FileMessage: React.FC<FileMessageProps> = ({
-    fileName, fileSize, fileType, progress, speed, isOwn, status, blob
+    fileName, fileSize, fileType, progress, speed, isOwn, status, error, blob, onCancel
 }) => {
     const { t } = useI18n()
     const isTransferring = status === 'transferring'
+    const isPending = status === 'pending'
     const isComplete = status === 'completed'
+    const isCancelled = status === 'cancelled'
     const isError = status === 'error'
 
     const handleDownload = () => {
@@ -100,6 +104,11 @@ export const FileMessage: React.FC<FileMessageProps> = ({
                 {isTransferring && progress !== undefined && (
                     <Progress value={progress} className="mt-1.5" showLabel />
                 )}
+                {isPending && (
+                    <div className="flex items-center gap-1 mt-1 opacity-60">
+                        <span className="text-xs">{t.pending}</span>
+                    </div>
+                )}
                 {isComplete && (
                     <div className="flex items-center gap-2 mt-1">
                         <div className="flex items-center gap-1 text-[var(--success)]">
@@ -123,6 +132,11 @@ export const FileMessage: React.FC<FileMessageProps> = ({
                         )}
                     </div>
                 )}
+                {isCancelled && (
+                    <div className="flex items-center gap-1 mt-1 text-[var(--warning)]">
+                        <span className="text-xs">{t.cancelled}</span>
+                    </div>
+                )}
                 {isError && (
                     <div className="flex items-center gap-1 mt-1 text-[var(--error)]">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -130,15 +144,22 @@ export const FileMessage: React.FC<FileMessageProps> = ({
                             <line x1="15" y1="9" x2="9" y2="15" />
                             <line x1="9" y1="9" x2="15" y2="15" />
                         </svg>
-                        <span className="text-xs">{t.error}</span>
-                    </div>
-                )}
-                {!isTransferring && !isComplete && !isError && (
-                    <div className="flex items-center gap-1 mt-1 opacity-60">
-                        <span className="text-xs">{t.pending}</span>
+                        <span className="text-xs">{error || t.error}</span>
                     </div>
                 )}
             </div>
+            {(isTransferring || isPending) && onCancel && (
+                <button
+                    onClick={onCancel}
+                    className="flex-shrink-0 p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--error)] transition-colors"
+                    title={t.cancel}
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            )}
         </div>
     )
 }

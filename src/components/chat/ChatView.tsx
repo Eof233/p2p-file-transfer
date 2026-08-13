@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { ScrollArea } from '../ui/ScrollArea'
 import { MessageBubble } from './MessageBubble'
 import { MessageInput } from './MessageInput'
@@ -6,10 +6,13 @@ import { TypingIndicator } from './TypingIndicator'
 import { ImagePreviewModal } from './ImagePreviewModal'
 import { KeyVerificationDialog } from '../security/KeyVerificationDialog'
 import { ConnectionInfo } from './ConnectionInfo'
+import { FileTransferDialog } from '../file/FileTransferDialog'
 import { useChat } from '../../hooks/useChat'
 import { useFileTransfer } from '../../hooks/useFileTransfer'
 import { useEncryption } from '../../hooks/useEncryption'
 import { useI18n } from '../../hooks/useI18n'
+import { ImageService } from '../../services/imageService'
+import { toast } from '../../services/toastService'
 
 interface ChatViewProps {
     peerId: string
@@ -17,8 +20,8 @@ interface ChatViewProps {
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
-    const { messages, typing, myId, sendMessage, clearMessages } = useChat(peerId)
-    const { sendFile } = useFileTransfer()
+    const { messages, typing, myId, sendMessage, setTyping, clearMessages } = useChat(peerId)
+    const { sendFile, acceptFile, rejectFile, pendingFiles } = useFileTransfer()
     const {
         fingerprint,
         hasSessionKey,
@@ -30,27 +33,90 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
     const { t } = useI18n()
     const [verifyDialogOpen, setVerifyDialogOpen] = useState(false)
     const [previewImage, setPreviewImage] = useState<string | null>(null)
+    const [dragActive, setDragActive] = useState(false)
+    const dragDepthRef = useRef(0)
+
+    // Incoming files from this peer awaiting acceptance
+    const incomingPendingFile = useMemo(
+        () => pendingFiles.find(f => f.peerId === peerId) || null,
+        [pendingFiles, peerId],
+    )
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
-    const handleSendMessage = (content: string) => {
+    const handleSendMessage = useCallback((content: string) => {
         sendMessage(content, 'text')
-    }
+    }, [sendMessage])
 
-    const handleSendFile = (file: File) => {
-        sendFile(file)
-    }
+    const handleSendFile = useCallback((file: File) => {
+        sendFile(file).catch((err: Error) => {
+            toast({ title: t.sendFileError, description: err?.message, variant: 'error' })
+        })
+    }, [sendFile, t.sendFileError])
 
-    const handleSendImage = (file: File) => {
-        // Convert to base64 and send inline
-        const reader = new FileReader()
-        reader.onload = () => {
-            sendMessage(reader.result as string, 'image', { imageData: reader.result as string })
+    const handleSendImage = useCallback(async (file: File) => {
+        // Compress before sending, then transfer via the chunked file protocol
+        // (single-message base64 breaks the data channel size limit).
+        try {
+            const compressed = await ImageService.compressImage(file)
+            const preview = await ImageService.fileToBase64(compressed)
+            await sendFile(compressed, { chatType: 'image', previewData: preview })
+        } catch {
+            // Fall back to the raw file if compression fails
+            const preview = await ImageService.fileToBase64(file)
+            await sendFile(file, { chatType: 'image', previewData: preview })
         }
-        reader.readAsDataURL(file)
-    }
+    }, [sendFile])
+
+    const handleSendImageWithToast = useCallback(async (file: File) => {
+        try {
+            await handleSendImage(file)
+        } catch (err: any) {
+            toast({ title: t.sendFileError, description: err?.message, variant: 'error' })
+        }
+    }, [handleSendImage, t.sendFileError])
+
+    const handleTyping = useCallback((isTyping: boolean) => {
+        setTyping(isTyping)
+    }, [setTyping])
+
+    // --- Drag & drop file sending ---
+    const handleDragEnter = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        if (e.dataTransfer.types.includes('Files')) {
+            dragDepthRef.current++
+            setDragActive(true)
+        }
+    }, [])
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+        if (dragDepthRef.current === 0) setDragActive(false)
+    }, [])
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+    }, [])
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        dragDepthRef.current = 0
+        setDragActive(false)
+
+        const files = Array.from(e.dataTransfer.files)
+        if (files.length === 0) return
+
+        for (const file of files) {
+            if (file.type.startsWith('image/')) {
+                handleSendImageWithToast(file)
+            } else {
+                handleSendFile(file)
+            }
+        }
+    }, [handleSendFile, handleSendImageWithToast])
 
     // Encryption state for this peer
     const isEncrypted = hasSessionKey(peerId)
@@ -73,7 +139,27 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <div
+            className="flex flex-col h-full relative"
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+        >
+            {/* Drag & drop overlay */}
+            {dragActive && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center bg-[var(--accent)]/10 border-2 border-dashed border-[var(--accent)] rounded-xl m-2 pointer-events-none animate-fade-in">
+                    <div className="flex flex-col items-center gap-2 px-6 py-4 rounded-2xl bg-[var(--bg-elevated)] shadow-lg">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{t.dropFiles}</span>
+                    </div>
+                </div>
+            )}
+
             {/* Chat Header */}
             <div className="flex items-center justify-between px-4 h-14 border-b border-[var(--separator)] bg-[var(--bg-primary)]">
                 <div className="flex items-center gap-3">
@@ -141,8 +227,24 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
             <MessageInput
                 onSendMessage={handleSendMessage}
                 onSendFile={handleSendFile}
-                onSendImage={handleSendImage}
+                onSendImage={handleSendImageWithToast}
+                onTyping={handleTyping}
             />
+
+            {/* Incoming file confirmation dialog */}
+            {incomingPendingFile && (
+                <FileTransferDialog
+                    open={true}
+                    onOpenChange={() => {}}
+                    fileName={incomingPendingFile.fileName}
+                    fileSize={incomingPendingFile.fileSize}
+                    fileType={incomingPendingFile.fileType}
+                    peerId={peerId}
+                    direction="receive"
+                    onAccept={() => acceptFile(incomingPendingFile.id)}
+                    onReject={() => rejectFile(incomingPendingFile.id)}
+                />
+            )}
 
             {/* Key Verification Dialog */}
             {fingerprint && remoteFingerprint && (

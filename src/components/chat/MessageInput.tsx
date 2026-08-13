@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { Button } from '../ui/Button'
 import { useI18n } from '../../hooks/useI18n'
+import { MAX_MESSAGE_LENGTH } from '../../utils/constants'
 
 interface MessageInputProps {
     onSendMessage: (content: string) => void
@@ -128,6 +129,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     onPaste={handlePaste}
                     placeholder={t.typeMessage}
                     disabled={disabled}
+                    maxLength={MAX_MESSAGE_LENGTH}
                     rows={1}
                     className="w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--separator)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none max-h-32"
                     style={{ minHeight: '40px' }}

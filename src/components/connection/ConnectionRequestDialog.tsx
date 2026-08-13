@@ -2,7 +2,6 @@ import React from 'react'
 import { Dialog } from '../ui/Dialog'
 import { Button } from '../ui/Button'
 import { useI18n } from '../../hooks/useI18n'
-import { useEncryption } from '../../hooks/useEncryption'
 import { ConnectionRequest } from '../../store/connection/connectionRequestTypes'
 
 interface ConnectionRequestDialogProps {
@@ -17,7 +16,6 @@ export const ConnectionRequestDialog: React.FC<ConnectionRequestDialogProps> = (
     onReject,
 }) => {
     const { t } = useI18n()
-    const { fingerprint } = useEncryption()
 
     const isOpen = request !== null && request.status === 'pending'
 
@@ -49,12 +47,12 @@ export const ConnectionRequestDialog: React.FC<ConnectionRequestDialogProps> = (
                     </p>
                 </div>
 
-                {/* Fingerprint */}
-                {fingerprint && (
+                {/* Remote fingerprint (identity check before accepting) */}
+                {request?.fingerprint && (
                     <div className="p-3 rounded-lg bg-[var(--bg-secondary)]">
-                        <p className="text-xs text-[var(--text-tertiary)] mb-1">Fingerprint</p>
+                        <p className="text-xs text-[var(--text-tertiary)] mb-1">{t.peerFingerprint}</p>
                         <p className="text-sm font-mono text-[var(--text-primary)] break-all">
-                            {fingerprint}
+                            {request.fingerprint}
                         </p>
                     </div>
                 )}

@@ -60,6 +60,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
       - name: Build Tauri app
         run: npm run tauri build -- --target ${{ matrix.target }}
 

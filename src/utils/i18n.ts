@@ -8,6 +8,7 @@ export interface Translations {
     stop: string
     settings: string
     copyId: string
+    sessionError: string
 
     // Sidebar
     chats: string
@@ -15,6 +16,7 @@ export interface Translations {
     noConnectionsHint: string
     enterPeerId: string
     connect: string
+    recent: string
 
     // Chat
     selectConnection: string
@@ -28,6 +30,7 @@ export interface Translations {
     pasteImage: string
     closePreview: string
     downloadImage: string
+    dropFiles: string
 
     // Settings
     appearance: string
@@ -77,7 +80,7 @@ export interface Translations {
     yourFingerprint: string
     peerFingerprint: string
     keysVerified: string
-    keysMismatch: string
+    keysMatch: string
     close: string
 
     // Connection Request
@@ -119,12 +122,14 @@ const en: Translations = {
     stop: 'Stop',
     settings: 'Settings',
     copyId: 'Copy ID',
+    sessionError: 'Failed to start session',
 
     chats: 'Chats',
     noConnections: 'No connections yet',
     noConnectionsHint: 'Click + to connect to a peer',
     enterPeerId: 'Enter peer ID...',
     connect: 'Connect',
+    recent: 'Recent',
 
     selectConnection: 'Select a connection',
     selectConnectionHint: 'Choose a peer from the sidebar to start chatting',
@@ -137,6 +142,7 @@ const en: Translations = {
     pasteImage: 'Paste image from clipboard (Ctrl+V)',
     closePreview: 'Close preview',
     downloadImage: 'Download image',
+    dropFiles: 'Drop files to send',
 
     appearance: 'Appearance',
     light: 'Light',
@@ -182,7 +188,7 @@ const en: Translations = {
     yourFingerprint: 'Your Fingerprint',
     peerFingerprint: 'Peer Fingerprint',
     keysVerified: 'Keys verified - Connection is secure',
-    keysMismatch: 'Keys do not match - Connection may not be secure',
+    keysMatch: 'Fingerprints match',
     close: 'Close',
 
     connectionRequest: 'Connection Request',
@@ -221,12 +227,14 @@ const zh: Translations = {
     stop: '停止',
     settings: '设置',
     copyId: '复制 ID',
+    sessionError: '会话启动失败',
 
     chats: '聊天',
     noConnections: '暂无连接',
     noConnectionsHint: '点击 + 连接对等方',
     enterPeerId: '输入对等方 ID...',
     connect: '连接',
+    recent: '最近',
 
     selectConnection: '选择一个连接',
     selectConnectionHint: '从侧边栏选择一个对等方开始聊天',
@@ -239,6 +247,7 @@ const zh: Translations = {
     pasteImage: '从剪贴板粘贴图片 (Ctrl+V)',
     closePreview: '关闭预览',
     downloadImage: '下载图片',
+    dropFiles: '拖放文件到此处发送',
 
     appearance: '外观',
     light: '浅色',
@@ -284,7 +293,7 @@ const zh: Translations = {
     yourFingerprint: '你的指纹',
     peerFingerprint: '对方指纹',
     keysVerified: '密钥已验证 - 连接安全',
-    keysMismatch: '密钥不匹配 - 连接可能不安全',
+    keysMatch: '指纹一致',
     close: '关闭',
 
     connectionRequest: '连接请求',

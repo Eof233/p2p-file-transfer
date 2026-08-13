@@ -1,31 +1,66 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Header } from './components/Header'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { ChatView } from './components/chat/ChatView'
 import { ConnectionRequestDialog } from './components/connection/ConnectionRequestDialog'
+import { Toast, ToastProvider, ToastViewport } from './components/ui/Toast'
 import { useAppSelector, useAppDispatch } from './store/hooks'
 import { startPeer, stopPeerSession } from './store/peer/peerActions'
 import * as connectionAction from './store/connection/connectionActions'
 import * as connectionRequestAction from './store/connection/connectionRequestActions'
 import { resetFileTransfers } from './store/file/fileActions'
-import { DataType, PeerConnection } from './helpers/peer'
+import { PeerConnection } from './helpers/peer'
 import { loadSettings } from './store/settings/settingsActions'
+import { clearAllTransferState } from './store/file/transferCoordinator'
+import { subscribeToasts, ToastInput } from './services/toastService'
+import { useI18n } from './hooks/useI18n'
 import './styles/globals.css'
 import './styles/animations.css'
 
+interface ActiveToast extends ToastInput {
+    id: number
+}
+
+const TOAST_DURATION = 3500
+
 export const App: React.FC = () => {
     const dispatch = useAppDispatch()
+    const { t } = useI18n()
     const peer = useAppSelector((state) => state.peer)
     const connection = useAppSelector((state) => state.connection)
     const connectionRequests = useAppSelector((state) => state.connectionRequest.requests)
+
+    const [toasts, setToasts] = useState<ActiveToast[]>([])
+    const toastIdRef = useRef(0)
+
+    const pushToast = (input: ToastInput) => {
+        const id = ++toastIdRef.current
+        setToasts((prev) => [...prev, { ...input, id }])
+        setTimeout(() => {
+            setToasts((prev) => prev.filter((toastItem) => toastItem.id !== id))
+        }, TOAST_DURATION)
+    }
+
+    // Toast bus subscription
+    useEffect(() => {
+        return subscribeToasts((input) => pushToast(input))
+    }, [])
+
+    // Surface session start errors
+    useEffect(() => {
+        if (peer.error) {
+            pushToast({ title: t.sessionError, description: peer.error, variant: 'error' })
+        }
+    }, [peer.error, t.sessionError])
 
     const pendingRequest = useMemo(() => {
         return connectionRequests.find(r => r.status === 'pending') || null
     }, [connectionRequests])
 
-    // Load settings on mount
+    // Load settings and connection history on mount
     useEffect(() => {
         dispatch(loadSettings() as any)
+        dispatch(connectionAction.loadConnectionHistoryState() as any)
     }, [dispatch])
 
     const handleStartSession = () => {
@@ -35,9 +70,10 @@ export const App: React.FC = () => {
     const handleStopSession = async () => {
         try {
             await PeerConnection.closePeerSession()
-        } catch (e) {
+        } catch {
             // Continue with state cleanup even if close fails
         }
+        clearAllTransferState()
         dispatch(stopPeerSession())
         dispatch(connectionAction.resetConnection())
         dispatch(resetFileTransfers())
@@ -48,21 +84,24 @@ export const App: React.FC = () => {
     }
 
     const handleSelectConnection = (id: string) => {
-        dispatch(connectionAction.selectItem(id))
+        dispatch(connectionAction.selectConnection(id) as any)
     }
 
     const handleCopyId = async () => {
         if (peer.id) {
             await navigator.clipboard.writeText(peer.id)
+            pushToast({ title: t.copied, variant: 'success' })
         }
     }
 
     const handleAcceptConnection = (peerId: string) => {
         dispatch(connectionRequestAction.acceptConnection(peerId) as any)
+        pushToast({ title: t.connectionAccepted, variant: 'success' })
     }
 
     const handleRejectConnection = (peerId: string) => {
         dispatch(connectionRequestAction.rejectConnection(peerId) as any)
+        pushToast({ title: t.connectionRejected, variant: 'info' })
     }
 
     return (
@@ -83,6 +122,7 @@ export const App: React.FC = () => {
                 {peer.started && (
                     <Sidebar
                         connections={connection.list}
+                        history={connection.history}
                         selectedId={connection.selectedId}
                         onSelect={handleSelectConnection}
                         onConnect={handleConnectPeer}
@@ -129,10 +169,10 @@ export const App: React.FC = () => {
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                             </svg>
-                                            Starting...
+                                            {t.stopping}
                                         </span>
                                     ) : (
-                                        'Start Session'
+                                        t.startSession
                                     )}
                                 </button>
                             </div>
@@ -147,6 +187,23 @@ export const App: React.FC = () => {
                 onAccept={handleAcceptConnection}
                 onReject={handleRejectConnection}
             />
+
+            {/* Toast bus */}
+            <ToastProvider duration={TOAST_DURATION}>
+                {toasts.map((toastItem) => (
+                    <Toast
+                        key={toastItem.id}
+                        open={true}
+                        onOpenChange={() =>
+                            setToasts((prev) => prev.filter((item) => item.id !== toastItem.id))
+                        }
+                        title={toastItem.title}
+                        description={toastItem.description}
+                        variant={toastItem.variant}
+                    />
+                ))}
+                <ToastViewport className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2" />
+            </ToastProvider>
         </div>
     )
 }

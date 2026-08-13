@@ -1,11 +1,12 @@
 import { Reducer } from "redux";
 import { SettingsActionType, SettingsState, Language } from "./settingsTypes";
 import { getStoredLanguage } from "../../utils/i18n";
+import { MAX_FILE_SIZE_DEFAULT } from "../../utils/constants";
 
 export const initialState: SettingsState = {
     theme: 'system',
     encryptionEnabled: true,
-    maxFileSize: 100 * 1024 * 1024,
+    maxFileSize: MAX_FILE_SIZE_DEFAULT,
     notificationsEnabled: true,
     language: getStoredLanguage(),
 }

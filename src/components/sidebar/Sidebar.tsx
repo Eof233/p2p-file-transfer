@@ -7,6 +7,7 @@ import { useI18n } from '../../hooks/useI18n'
 
 interface SidebarProps {
     connections: string[]
+    history?: string[]
     selectedId?: string
     onSelect: (id: string) => void
     onConnect: (id: string) => void
@@ -18,10 +19,12 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-    connections, selectedId, onSelect, onConnect, connectLoading, connectError, myId, onCopyId, className = ''
+    connections, history = [], selectedId, onSelect, onConnect, connectLoading, connectError, myId, onCopyId, className = ''
 }) => {
     const [showNewConnection, setShowNewConnection] = useState(false)
     const { t } = useI18n()
+
+    const recentPeers = history.filter(id => !connections.includes(id)).slice(0, 5)
 
     return (
         <div className={`flex flex-col h-full bg-[var(--bg-primary)] border-r border-[var(--separator)] overflow-hidden ${className}`}>
@@ -70,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Connection List */}
             <ScrollArea className="flex-1 min-h-0">
                 <div className="p-2 flex flex-col gap-1">
-                    {connections.length === 0 ? (
+                    {connections.length === 0 && recentPeers.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-center">
                             <svg className="mb-3 text-[var(--text-tertiary)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -90,6 +93,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 onClick={() => onSelect(id)}
                             />
                         ))
+                    )}
+
+                    {/* Recent connections */}
+                    {recentPeers.length > 0 && (
+                        <>
+                            <div className="px-2 pt-3 pb-1 text-xs font-medium text-[var(--text-tertiary)]">
+                                {t.recent}
+                            </div>
+                            {recentPeers.map(id => (
+                                <button
+                                    key={id}
+                                    onClick={() => onConnect(id)}
+                                    disabled={connectLoading}
+                                    className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg text-left hover:bg-[var(--bg-secondary)] transition-colors group"
+                                    title={`${t.connect} ${id}`}
+                                >
+                                    <code className="text-xs font-mono text-[var(--text-secondary)] truncate">{id}</code>
+                                    <svg
+                                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-[var(--accent)]"
+                                        width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                                    >
+                                        <path d="M5 12h14" />
+                                        <polyline points="12 5 19 12 12 19" />
+                                    </svg>
+                                </button>
+                            ))}
+                        </>
                     )}
                 </div>
             </ScrollArea>

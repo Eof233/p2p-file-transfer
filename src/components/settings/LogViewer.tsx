@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { ScrollArea } from '../ui/ScrollArea'
 import { Button } from '../ui/Button'
-import { logger, LogLevel } from '../../services/logService'
+import { logger, LogLevel, LogEntry } from '../../services/logService'
 import { useI18n } from '../../hooks/useI18n'
 
 interface LogViewerProps {
@@ -15,10 +15,14 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
     const [moduleFilter, setModuleFilter] = useState<string>('')
     const [refreshKey, setRefreshKey] = useState(0)
 
+    // Snapshot the logs whenever the viewer opens or the user refreshes
+    const [snapshot, setSnapshot] = useState<LogEntry[]>([])
+    useEffect(() => {
+        if (open) setSnapshot(logger.getLogs())
+    }, [open, refreshKey])
+
     const logs = useMemo(() => {
-        // Force re-computation when refreshKey changes
-        void refreshKey
-        let filtered = logger.getLogs()
+        let filtered = snapshot
         if (levelFilter !== null) {
             filtered = filtered.filter(log => log.level === levelFilter)
         }
@@ -26,12 +30,12 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
             filtered = filtered.filter(log => log.module.includes(moduleFilter))
         }
         return filtered.reverse() // Newest first
-    }, [levelFilter, moduleFilter, refreshKey])
+    }, [snapshot, levelFilter, moduleFilter])
 
     const modules = useMemo(() => {
-        const moduleSet = new Set(logger.getLogs().map(log => log.module))
+        const moduleSet = new Set(snapshot.map(log => log.module))
         return Array.from(moduleSet).sort()
-    }, [refreshKey])
+    }, [snapshot])
 
     const levelColors: Record<LogLevel, string> = {
         [LogLevel.DEBUG]: 'text-[var(--text-tertiary)]',

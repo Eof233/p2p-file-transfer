@@ -1,7 +1,6 @@
-import React, { useCallback, useState } from 'react'
+import React from 'react'
 import { Dialog } from '../ui/Dialog'
 import { Button } from '../ui/Button'
-import { Progress } from '../ui/Progress'
 import { formatFileSize } from '../../utils/formatters'
 import { LARGE_FILE_THRESHOLD } from '../../utils/constants'
 

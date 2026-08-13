@@ -1,8 +1,9 @@
 import {SettingsActionType, SettingsState} from "./settingsTypes";
 import {Dispatch} from "redux";
 import {RootState} from "../index";
+import {STORAGE_KEYS} from "../../utils/constants";
 
-const SETTINGS_STORAGE_KEY = 'p2p-messenger-settings'
+const SETTINGS_STORAGE_KEY = STORAGE_KEYS.SETTINGS
 
 export const setTheme = (theme: SettingsState['theme']) => ({
     type: SettingsActionType.SETTINGS_THEME_SET, theme
