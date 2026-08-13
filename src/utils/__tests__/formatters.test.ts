@@ -36,9 +36,10 @@ describe('formatters', () => {
         expect(truncateId('0123456789abcdef', 8)).toBe('01234567...')
     })
 
-    it('formatTime produces HH:MM', () => {
+    it('formatTime produces HH:MM (24h or 12h, depending on locale)', () => {
         const result = formatTime(new Date(2026, 0, 1, 9, 5).getTime())
-        expect(result).toMatch(/^\d{2}:\d{2}$/)
+        // en-US style "09:05 AM", 24h style "09:05", or similar locales
+        expect(result).toMatch(/^\d{1,2}:\d{2}([ \u00A0](AM|PM))?$/i)
     })
 
     it('formatDate distinguishes today/yesterday/other', () => {
