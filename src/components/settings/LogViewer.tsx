@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { ScrollArea } from '../ui/ScrollArea'
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '../ui/Button'
 import { logger, LogLevel, LogEntry } from '../../services/logService'
 import { useI18n } from '../../hooks/useI18n'
@@ -13,16 +13,18 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
     const { t } = useI18n()
     const [levelFilter, setLevelFilter] = useState<LogLevel | null>(null)
     const [moduleFilter, setModuleFilter] = useState<string>('')
-    const [refreshKey, setRefreshKey] = useState(0)
 
-    // Snapshot the logs whenever the viewer opens or the user refreshes
-    const [snapshot, setSnapshot] = useState<LogEntry[]>([])
+    // Live view: re-snapshot when the viewer opens and subscribe to the log
+    // service so new entries appear in real time without manual refresh.
+    const [allLogs, setAllLogs] = useState<LogEntry[]>([])
     useEffect(() => {
-        if (open) setSnapshot(logger.getLogs())
-    }, [open, refreshKey])
+        if (!open) return
+        setAllLogs(logger.getLogs())
+        return logger.subscribe(() => setAllLogs(logger.getLogs()))
+    }, [open])
 
     const logs = useMemo(() => {
-        let filtered = snapshot
+        let filtered = allLogs
         if (levelFilter !== null) {
             filtered = filtered.filter(log => log.level === levelFilter)
         }
@@ -30,12 +32,12 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
             filtered = filtered.filter(log => log.module.includes(moduleFilter))
         }
         return filtered.reverse() // Newest first
-    }, [snapshot, levelFilter, moduleFilter])
+    }, [allLogs, levelFilter, moduleFilter])
 
     const modules = useMemo(() => {
-        const moduleSet = new Set(snapshot.map(log => log.module))
+        const moduleSet = new Set(allLogs.map(log => log.module))
         return Array.from(moduleSet).sort()
-    }, [snapshot])
+    }, [allLogs])
 
     const levelColors: Record<LogLevel, string> = {
         [LogLevel.DEBUG]: 'text-[var(--text-tertiary)]',
@@ -76,17 +78,40 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
     }
 
     const handleClear = () => {
+        // clearLogs() notifies subscribers, so the live list updates itself
         logger.clearLogs()
-        setRefreshKey(prev => prev + 1)
     }
 
     const handleRefresh = () => {
-        setRefreshKey(prev => prev + 1)
+        setAllLogs(logger.getLogs())
     }
+
+    // --- Auto stick-to-bottom when new entries arrive ---------------------
+    // Only follow new logs when the user is already near the bottom; if they
+    // scrolled up to inspect something, keep their position.
+    const scrollRef = useRef<HTMLDivElement>(null)
+    const stickToBottomRef = useRef(true)
+
+    const handleScroll = () => {
+        const el = scrollRef.current
+        if (el) {
+            stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+        }
+    }
+
+    useLayoutEffect(() => {
+        if (stickToBottomRef.current && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+        }
+    }, [logs])
 
     if (!open) return null
 
-    return (
+    // Render into document.body so the fullscreen overlay is always relative
+    // to the viewport — never to a transformed ancestor (a transform on a
+    // parent becomes the containing block for fixed-positioned descendants,
+    // which would shrink/clip the overlay to that ancestor's box).
+    return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in">
             <div className="bg-[var(--bg-elevated)] rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col animate-scale-in">
                 {/* Header */}
@@ -143,8 +168,14 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
                     </span>
                 </div>
 
-                {/* Log List */}
-                <ScrollArea className="flex-1 min-h-0">
+                {/* Log List — native scroll container: avoids the percentage
+                    height chain through flex + max-h that broke Radix
+                    ScrollArea's viewport sizing when many logs accumulated. */}
+                <div
+                    ref={scrollRef}
+                    onScroll={handleScroll}
+                    className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+                >
                     <div className="p-2 font-mono text-xs">
                         {logs.length === 0 ? (
                             <div className="text-center py-8 text-[var(--text-tertiary)]">
@@ -174,8 +205,9 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
                             ))
                         )}
                     </div>
-                </ScrollArea>
+                </div>
             </div>
-        </div>
+        </div>,
+        document.body
     )
 }

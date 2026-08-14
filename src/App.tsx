@@ -152,11 +152,10 @@ export const App: React.FC = () => {
                                     </svg>
                                 </div>
                                 <h2 className="text-2xl font-semibold text-[var(--text-primary)] mb-2">
-                                    P2P Messenger
+                                    {t.appTitle}
                                 </h2>
                                 <p className="text-[var(--text-secondary)] mb-6 max-w-md">
-                                    Secure, peer-to-peer communication with end-to-end encryption.
-                                    Start a session to connect with others.
+                                    {t.welcomeDesc}
                                 </p>
                                 <button
                                     onClick={handleStartSession}

@@ -87,7 +87,11 @@ export const FileMessage: React.FC<FileMessageProps> = ({
 
     return (
         <div className="flex items-center gap-3 p-2 min-w-[240px]">
-            <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-[var(--overlay)]">
+            <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg ${
+                isOwn
+                    ? 'bg-black/25 text-white'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'
+            }`}>
                 {getFileIcon(fileType)}
             </div>
             <div className="flex-1 min-w-0">

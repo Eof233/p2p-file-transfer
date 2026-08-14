@@ -9,6 +9,7 @@ export interface Translations {
     settings: string
     copyId: string
     sessionError: string
+    welcomeDesc: string
 
     // Sidebar
     chats: string
@@ -17,6 +18,7 @@ export interface Translations {
     enterPeerId: string
     connect: string
     recent: string
+    peerIdLabel: string
 
     // Chat
     selectConnection: string
@@ -123,6 +125,7 @@ const en: Translations = {
     settings: 'Settings',
     copyId: 'Copy ID',
     sessionError: 'Failed to start session',
+    welcomeDesc: 'Secure, peer-to-peer communication with end-to-end encryption. Start a session to connect with others.',
 
     chats: 'Chats',
     noConnections: 'No connections yet',
@@ -130,6 +133,7 @@ const en: Translations = {
     enterPeerId: 'Enter peer ID...',
     connect: 'Connect',
     recent: 'Recent',
+    peerIdLabel: 'Peer ID',
 
     selectConnection: 'Select a connection',
     selectConnectionHint: 'Choose a peer from the sidebar to start chatting',
@@ -228,6 +232,7 @@ const zh: Translations = {
     settings: '设置',
     copyId: '复制 ID',
     sessionError: '会话启动失败',
+    welcomeDesc: '安全的点对点通讯，支持端到端加密。启动会话即可与他人连接。',
 
     chats: '聊天',
     noConnections: '暂无连接',
@@ -235,6 +240,7 @@ const zh: Translations = {
     enterPeerId: '输入对等方 ID...',
     connect: '连接',
     recent: '最近',
+    peerIdLabel: '对等方 ID',
 
     selectConnection: '选择一个连接',
     selectConnectionHint: '从侧边栏选择一个对等方开始聊天',

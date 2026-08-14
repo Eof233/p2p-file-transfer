@@ -3,6 +3,7 @@ import { Dialog } from '../ui/Dialog'
 import { Button } from '../ui/Button'
 import { formatFileSize } from '../../utils/formatters'
 import { LARGE_FILE_THRESHOLD } from '../../utils/constants'
+import { useI18n } from '../../hooks/useI18n'
 
 interface FileTransferDialogProps {
     open: boolean
@@ -20,6 +21,7 @@ interface FileTransferDialogProps {
 export const FileTransferDialog: React.FC<FileTransferDialogProps> = ({
     open, onOpenChange, fileName, fileSize, fileType, peerId, direction, onAccept, onReject, onConfirm
 }) => {
+    const { t } = useI18n()
     const isLargeFile = fileSize > LARGE_FILE_THRESHOLD
 
     const getFileIcon = () => {
@@ -44,8 +46,8 @@ export const FileTransferDialog: React.FC<FileTransferDialogProps> = ({
         <Dialog
             open={open}
             onOpenChange={onOpenChange}
-            title={direction === 'send' ? 'Send File' : 'Receive File'}
-            description={direction === 'send' ? `Send to ${peerId}` : `From ${peerId}`}
+            title={direction === 'send' ? t.sendFileTitle : t.receiveFileTitle}
+            description={direction === 'send' ? `${t.sendTo} ${peerId}` : `${t.from} ${peerId}`}
         >
             <div className="flex flex-col items-center py-4">
                 <div className="w-16 h-16 flex items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--text-secondary)] mb-4">
@@ -67,7 +69,7 @@ export const FileTransferDialog: React.FC<FileTransferDialogProps> = ({
                             <line x1="12" y1="17" x2="12.01" y2="17" />
                         </svg>
                         <span className="text-xs text-[var(--warning)]">
-                            This is a large file ({formatFileSize(fileSize)}). Accept transfer?
+                            {t.largeFileWarning} ({formatFileSize(fileSize)})
                         </span>
                     </div>
                 )}
@@ -76,19 +78,19 @@ export const FileTransferDialog: React.FC<FileTransferDialogProps> = ({
                     {direction === 'receive' ? (
                         <>
                             <Button variant="secondary" className="flex-1" onClick={onReject}>
-                                Reject
+                                {t.reject}
                             </Button>
                             <Button variant="primary" className="flex-1" onClick={onAccept}>
-                                Accept
+                                {t.accept}
                             </Button>
                         </>
                     ) : (
                         <>
                             <Button variant="secondary" className="flex-1" onClick={() => onOpenChange(false)}>
-                                Cancel
+                                {t.cancel}
                             </Button>
                             <Button variant="primary" className="flex-1" onClick={onConfirm}>
-                                Send
+                                {t.send}
                             </Button>
                         </>
                     )}

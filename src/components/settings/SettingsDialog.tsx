@@ -34,7 +34,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onOpenChan
         dispatch({ type: SettingsActionType.SETTINGS_NOTIFICATIONS_TOGGLE })
     }
 
+    // Note: <LogViewer> must render OUTSIDE <Dialog>: the Dialog content always
+    // carries a translate transform, which becomes the containing block for
+    // fixed-positioned descendants and would break the LogViewer's fullscreen
+    // overlay (it would only cover the dialog box instead of the viewport).
     return (
+        <>
         <Dialog
             open={open}
             onOpenChange={onOpenChange}
@@ -139,7 +144,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onOpenChan
                     </div>
                 </div>
             </div>
-            <LogViewer open={logViewerOpen} onClose={() => setLogViewerOpen(false)} />
         </Dialog>
+        <LogViewer open={logViewerOpen} onClose={() => setLogViewerOpen(false)} />
+        </>
     )
 }

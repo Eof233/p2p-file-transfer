@@ -45,10 +45,24 @@ class LogService {
     private enableConsole: boolean = true
     private enableStorage: boolean = true
     private modules: Set<string> = new Set()
+    private listeners: Set<() => void> = new Set()
 
     constructor() {
         this.loadLogs()
         this.setupErrorHandlers()
+    }
+
+    // Subscribe to log changes (new entry appended or logs cleared).
+    // Returns an unsubscribe function.
+    subscribe(listener: () => void): () => void {
+        this.listeners.add(listener)
+        return () => {
+            this.listeners.delete(listener)
+        }
+    }
+
+    private notifyListeners(): void {
+        this.listeners.forEach(listener => listener())
     }
 
     // Set minimum log level
@@ -93,6 +107,8 @@ class LogService {
         if (this.enableStorage) {
             this.persistLogs()
         }
+
+        this.notifyListeners()
     }
 
     // Console output with formatting
@@ -197,6 +213,7 @@ class LogService {
     clearLogs(): void {
         this.logs = []
         localStorage.removeItem(STORAGE_KEY)
+        this.notifyListeners()
     }
 
     // Export logs as JSON string

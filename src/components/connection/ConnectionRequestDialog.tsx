@@ -41,7 +41,7 @@ export const ConnectionRequestDialog: React.FC<ConnectionRequestDialogProps> = (
             <div className="space-y-4">
                 {/* Peer ID */}
                 <div className="p-3 rounded-lg bg-[var(--bg-secondary)]">
-                    <p className="text-xs text-[var(--text-tertiary)] mb-1">Peer ID</p>
+                    <p className="text-xs text-[var(--text-tertiary)] mb-1">{t.peerIdLabel}</p>
                     <p className="text-sm font-mono text-[var(--text-primary)] break-all">
                         {request?.peerId}
                     </p>

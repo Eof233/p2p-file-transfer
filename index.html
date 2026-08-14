@@ -6,6 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content="Secure P2P Messenger - End-to-end encrypted messaging and file transfer" />
+    <script>
+        // Apply the persisted theme before first paint to avoid a flash of the
+        // wrong theme. 'system' (or no stored value) leaves the attribute unset
+        // so the CSS prefers-color-scheme media query decides.
+        (function () {
+            try {
+                var settings = JSON.parse(localStorage.getItem('p2p-messenger-settings') || '{}')
+                if (settings.theme === 'light' || settings.theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', settings.theme)
+                }
+            } catch (e) { /* ignore malformed storage */ }
+        })()
+    </script>
     <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />
     <title>P2P Messenger</title>
