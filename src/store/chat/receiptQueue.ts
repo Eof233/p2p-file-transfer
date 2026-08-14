@@ -13,6 +13,8 @@ export interface QueuedReceipt {
     data: Data
     /** How many failed send attempts have happened so far. */
     retryCount: number
+    /** Resolves when this entry is delivered, superseded, or dropped. */
+    settle: () => void
 }
 
 /**
@@ -98,7 +100,7 @@ const flush = async (peerId: string): Promise<void> => {
     if (!state || state.sending || state.timer !== undefined) return
 
     if (state.entries.length === 0) {
-        receiptQueues.delete(peerId)
+        dropPeer(peerId)
         return
     }
 
@@ -107,15 +109,27 @@ const flush = async (peerId: string): Promise<void> => {
     try {
         await sendFn(peerId, entry.data)
         state.entries.shift()
+        entry.settle()
         state.sending = false
-        void flush(peerId)
+        if (state.entries.length === 0) {
+            // Drained: drop the whole peer state (including the disconnect
+            // hook) so a later connection to the same peer re-arms cleanly.
+            dropPeer(peerId)
+        } else {
+            void flush(peerId)
+        }
     } catch (err) {
         entry.retryCount += 1
         state.sending = false
         if (entry.retryCount > MAX_RETRIES) {
             log.warn('Dropping receipt after ' + MAX_RETRIES + ' failed retries: ' + peerId + ', message: ' + entry.messageId)
             state.entries.shift()
-            void flush(peerId)
+            entry.settle()
+            if (state.entries.length === 0) {
+                dropPeer(peerId)
+            } else {
+                void flush(peerId)
+            }
         } else {
             const delay = RETRY_DELAYS[entry.retryCount - 1]
             log.debug('Receipt send failed, retrying in ' + delay + 'ms: ' + peerId, err)
@@ -128,10 +142,21 @@ const flush = async (peerId: string): Promise<void> => {
 }
 
 /**
- * Queue a receipt for delivery. An immediate send is attempted; on failure
- * the entry stays at the head and is retried with backoff (see MAX_RETRIES).
+ * Remove a peer's queue state and disconnect hook. Called when the queue
+ * drains naturally and when the connection closes.
  */
-export const enqueueReceipt = (peerId: string, messageId: string, status: ReceiptStatus, data: Data): void => {
+const dropPeer = (peerId: string): void => {
+    receiptQueues.delete(peerId)
+    disconnectHooks.delete(peerId)
+}
+
+/**
+ * Queue a receipt for delivery and return a promise that resolves when THIS
+ * receipt has been delivered, superseded by a newer receipt, or dropped
+ * after the retry budget (it never rejects). An immediate send is attempted;
+ * on failure the entry stays at the head and is retried with backoff.
+ */
+export const enqueueReceipt = (peerId: string, messageId: string, status: ReceiptStatus, data: Data): Promise<void> => {
     let state = receiptQueues.get(peerId)
     if (!state) {
         state = { entries: [], sending: false, timer: undefined }
@@ -145,16 +170,37 @@ export const enqueueReceipt = (peerId: string, messageId: string, status: Receip
         // Supersede unless the new receipt is strictly lower-ranked (e.g.
         // 'delivered' after a queued 'read'); keep the retry count so a
         // long-failing entry still hits the drop budget.
-        if (STATUS_RANK[status] < STATUS_RANK[existing.status]) return
+        if (STATUS_RANK[status] < STATUS_RANK[existing.status]) {
+            return new Promise((resolve) => {
+                const original = existing.settle
+                existing.settle = () => {
+                    original()
+                    resolve()
+                }
+            })
+        }
         existing.status = status
         existing.data = data
-    } else {
-        state.entries.push({ messageId, status, data, retryCount: 0 })
+        return new Promise((resolve) => {
+            const original = existing.settle
+            existing.settle = () => {
+                original()
+                resolve()
+            }
+        })
     }
+
+    let settleEntry!: () => void
+    const settled = new Promise<void>((resolve) => {
+        settleEntry = resolve
+    })
+    state.entries.push({ messageId, status, data, retryCount: 0, settle: settleEntry })
 
     if (!state.sending && state.timer === undefined) {
         void flush(peerId)
     }
+
+    return settled
 }
 
 /**
@@ -164,8 +210,11 @@ export const enqueueReceipt = (peerId: string, messageId: string, status: Receip
  */
 export const clearReceiptQueue = (peerId: string): void => {
     const state = receiptQueues.get(peerId)
-    if (state && state.timer !== undefined) {
-        clearTimeout(state.timer)
+    if (state) {
+        if (state.timer !== undefined) {
+            clearTimeout(state.timer)
+        }
+        state.entries.forEach((entry) => entry.settle())
     }
     receiptQueues.delete(peerId)
     disconnectHooks.delete(peerId)
@@ -175,6 +224,7 @@ export const clearReceiptQueue = (peerId: string): void => {
 export const clearAllReceiptQueues = (): void => {
     receiptQueues.forEach((state) => {
         if (state.timer !== undefined) clearTimeout(state.timer)
+        state.entries.forEach((entry) => entry.settle())
     })
     receiptQueues.clear()
     disconnectHooks.clear()

@@ -32,9 +32,12 @@ describe('receiptQueue', () => {
     })
 
     it('sends queued receipts in FIFO order per peer', async () => {
-        enqueueReceipt('p1', 'm1', 'delivered', makeData('m1-delivered'))
-        enqueueReceipt('p1', 'm2', 'read', makeData('m2-read'))
-        await settle()
+        const first = enqueueReceipt('p1', 'm1', 'delivered', makeData('m1-delivered'))
+        const second = enqueueReceipt('p1', 'm2', 'read', makeData('m2-read'))
+        // The returned promises resolve when the respective receipt has been
+        // delivered, so no microtask counting is needed.
+        await first
+        await second
 
         expect(sendMock).toHaveBeenCalledTimes(2)
         expect(sendMock.mock.calls[0]).toEqual(['p1', makeData('m1-delivered')])
@@ -43,9 +46,10 @@ describe('receiptQueue', () => {
     })
 
     it('keeps per-peer queues independent', async () => {
-        enqueueReceipt('p1', 'm1', 'read', makeData('p1-m1'))
-        enqueueReceipt('p2', 'm2', 'read', makeData('p2-m2'))
-        await settle()
+        const first = enqueueReceipt('p1', 'm1', 'read', makeData('p1-m1'))
+        const second = enqueueReceipt('p2', 'm2', 'read', makeData('p2-m2'))
+        await first
+        await second
 
         expect(sendMock).toHaveBeenCalledTimes(2)
         expect(sendMock.mock.calls.map(([peerId]) => peerId)).toEqual(['p1', 'p2'])
@@ -54,7 +58,7 @@ describe('receiptQueue', () => {
 
     it("dedupes: 'read' supersedes an undelivered 'delivered' for the same message", async () => {
         sendMock.mockRejectedValueOnce(new Error('send failed'))
-        enqueueReceipt('p1', 'm1', 'delivered', makeData('m1-delivered'))
+        const first = enqueueReceipt('p1', 'm1', 'delivered', makeData('m1-delivered'))
         await settle()
         expect(sendMock).toHaveBeenCalledTimes(1)
 
@@ -64,7 +68,7 @@ describe('receiptQueue', () => {
         expect(waiting.entries[0].retryCount).toBe(1)
 
         // A 'read' for the same message supersedes the queued 'delivered'.
-        enqueueReceipt('p1', 'm1', 'read', makeData('m1-read'))
+        const superseding = enqueueReceipt('p1', 'm1', 'read', makeData('m1-read'))
         expect(receiptQueues.get('p1')!.entries).toHaveLength(1)
         expect(receiptQueues.get('p1')!.entries[0].status).toBe('read')
 
@@ -73,6 +77,10 @@ describe('receiptQueue', () => {
         expect(sendMock).toHaveBeenCalledTimes(2)
         expect(sendMock.mock.calls[1]).toEqual(['p1', makeData('m1-read')])
         expect(receiptQueues.has('p1')).toBe(false)
+
+        // Both the original and the superseding enqueue promises settle.
+        await first
+        await superseding
     })
 
     it("dedupes: a newer 'read' supersedes an older undelivered 'read', and 'delivered' never downgrades it", async () => {
