@@ -12,6 +12,7 @@ import { resetFileTransfers } from './store/file/fileActions'
 import { PeerConnection } from './helpers/peer'
 import { loadSettings } from './store/settings/settingsActions'
 import { clearAllTransferState } from './store/file/transferCoordinator'
+import { clearAllReceiptQueues } from './store/chat/receiptQueue'
 import { subscribeToasts, ToastInput } from './services/toastService'
 import { useI18n } from './hooks/useI18n'
 import './styles/globals.css'
@@ -74,6 +75,7 @@ export const App: React.FC = () => {
             // Continue with state cleanup even if close fails
         }
         clearAllTransferState()
+        clearAllReceiptQueues()
         dispatch(stopPeerSession())
         dispatch(connectionAction.resetConnection())
         dispatch(resetFileTransfers())

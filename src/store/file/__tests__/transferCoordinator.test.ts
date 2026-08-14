@@ -9,8 +9,30 @@ import {
     clearAllTransferState,
     markTransferCancelled,
     isTransferCancelled,
+    markTransferPaused,
+    isTransferPaused,
+    unmarkTransferPaused,
+    setSenderTransferState,
+    getSenderTransferState,
+    interruptTransferState,
+    SenderTransferState,
     pendingIncomingTransfers,
 } from '../transferCoordinator'
+
+/** Minimal sender-side state used to exercise pause/resume bookkeeping. */
+const senderState = (): SenderTransferState => ({
+    peerId: 'peerA',
+    fileName: 'a.bin',
+    fileType: 'application/octet-stream',
+    chunks: [],
+    pendingIndexes: [0, 1, 2],
+    sentIndexes: new Set<number>([0]),
+    retransmitRounds: 0,
+    useEncryption: false,
+    startTime: Date.now(),
+    bytesSent: 1024,
+    active: false,
+})
 
 describe('transferCoordinator', () => {
     it('acceptance waiter resolves on FILE_ACCEPT', async () => {
@@ -75,5 +97,43 @@ describe('transferCoordinator', () => {
         clearAllTransferState()
         await expect(accept).rejects.toThrow('Transfer aborted')
         expect(pendingIncomingTransfers.size).toBe(0)
+    })
+
+    it('pause flag can be set, queried and cleared', () => {
+        expect(isTransferPaused('p1')).toBe(false)
+        markTransferPaused('p1')
+        expect(isTransferPaused('p1')).toBe(true)
+        unmarkTransferPaused('p1')
+        expect(isTransferPaused('p1')).toBe(false)
+    })
+
+    it('clearTransferState clears the pause flag and sender state', () => {
+        markTransferPaused('p2')
+        setSenderTransferState('p2', senderState())
+        clearTransferState('p2')
+        expect(isTransferPaused('p2')).toBe(false)
+        expect(getSenderTransferState('p2')).toBeUndefined()
+    })
+
+    it('interruptTransferState keeps sender state but clears cancel flag and waiters', async () => {
+        setSenderTransferState('p3', senderState())
+        markTransferCancelled('p3')
+        const end = waitForEndAnswer('p3', 1000)
+
+        interruptTransferState('p3')
+        expect(getSenderTransferState('p3')).toBeDefined()
+        expect(isTransferCancelled('p3')).toBe(false)
+        await expect(end).rejects.toThrow('Transfer interrupted')
+
+        clearTransferState('p3')
+    })
+
+    it('clearAllTransferState clears sender state and pause flags', () => {
+        setSenderTransferState('p4', senderState())
+        markTransferPaused('p4')
+
+        clearAllTransferState()
+        expect(getSenderTransferState('p4')).toBeUndefined()
+        expect(isTransferPaused('p4')).toBe(false)
     })
 })

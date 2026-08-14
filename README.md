@@ -6,16 +6,27 @@ Secure, peer-to-peer communication tool with end-to-end encryption. Send message
 
 ### Messaging
 - Real-time text chat via WebRTC data channels
+- Markdown in messages: bold, italic, inline code and links, plus fenced code
+  blocks with a copy button and lightweight syntax highlighting (js/ts/json/css/bash)
 - Typing indicators
-- Message status (sent/delivered/read receipts)
+- Message status (sent/delivered/read receipts; undelivered receipts retried
+  with backoff)
 - Inline image display with click-to-preview (auto-compressed before send)
-- File transfer with progress, speed, cancel, and chunk retransmission
+- Per-conversation image gallery opened from the chat header
+- File transfer with progress, speed, cancel, pause/resume, and chunk
+  retransmission (interrupted transfers can resume within the same session)
 - Drag & drop files onto the chat to send them
 
 ### Security
 - End-to-end encryption (AES-256-GCM + RSA-2048, RSA-OAEP key exchange)
-- Encrypted file metadata and content (chunked)
+- Perfect Forward Secrecy: per-connection ephemeral ECDH (P-256) keys, with
+  AES session keys derived via ECDH + HKDF; RSA-2048 remains the long-term
+  identity for fingerprint verification (legacy KEY_EXCHANGE fallback)
+- Encrypted file metadata, content, and protocol control messages (chunked)
 - Manual fingerprint verification per peer
+- Optional encrypted local data: connection history and logs are AES-256-GCM
+  encrypted at rest when enabled — key stored locally, so casual-inspection
+  protection only (no passphrase)
 - No server storage - all data stays on your devices
 
 ### Connection
@@ -24,11 +35,15 @@ Secure, peer-to-peer communication tool with end-to-end encryption. Send message
 - Connection quality monitoring (latency, IP, data stats)
 - Recent-connections history (localStorage) for quick reconnect
 - Automatic signaling reconnection with exponential backoff
-- NAT traversal via STUN servers
+- Automatic data-channel reconnect with exponential backoff (1s–30s, up to 10
+  attempts): chat and transfers recover from a dropped channel, with a
+  "Reconnecting..." sidebar state; fails if the remote restarted its session
+- NAT traversal via STUN servers (no TURN server configured)
 
 ### Desktop & UX
 - Optional Tauri 1.x shell for Windows, macOS (incl. Apple Silicon), Linux
 - Desktop notifications for messages while the app is hidden
+- Built-in log viewer with level/module filters and an "Errors only" filter
 - Light/dark/system themes, English/Chinese UI, reduced-motion support
 
 ## Tech Stack

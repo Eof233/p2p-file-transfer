@@ -1,3 +1,5 @@
+import { encryptedStorage } from './encryptedStorageService'
+
 // Log levels in order of severity
 export enum LogLevel {
     DEBUG = 0,
@@ -129,29 +131,34 @@ class LogService {
         }
     }
 
-    // Persist logs to localStorage
+    // Persist logs to storage (encrypted when local data encryption is on)
     private persistLogs(): void {
         try {
             // Rotate logs if too many
             if (this.logs.length > MAX_LOGS) {
                 this.logs = this.logs.slice(-LOG_ROTATION_COUNT)
             }
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.logs))
+            void encryptedStorage.setItem(STORAGE_KEY, JSON.stringify(this.logs))
         } catch {
             // Storage full or unavailable
         }
     }
 
-    // Load logs from localStorage
+    // Load logs from storage (encrypted when local data encryption is on).
+    // Async: the constructor fires this and persisted entries appear as soon
+    // as decryption resolves; subscribers are notified so an open log viewer
+    // picks them up.
     private loadLogs(): void {
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY)
+        void encryptedStorage.getItem(STORAGE_KEY).then((stored) => {
             if (stored) {
-                this.logs = JSON.parse(stored)
+                try {
+                    this.logs = JSON.parse(stored)
+                } catch {
+                    this.logs = []
+                }
+                this.notifyListeners()
             }
-        } catch {
-            this.logs = []
-        }
+        })
     }
 
     // Setup global error handlers
@@ -212,7 +219,7 @@ class LogService {
     // Clear all logs
     clearLogs(): void {
         this.logs = []
-        localStorage.removeItem(STORAGE_KEY)
+        void encryptedStorage.removeItem(STORAGE_KEY)
         this.notifyListeners()
     }
 

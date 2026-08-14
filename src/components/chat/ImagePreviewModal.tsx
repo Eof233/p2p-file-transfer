@@ -35,7 +35,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ open, onCl
             <div className="relative max-w-[90vw] max-h-[90vh] animate-scale-in" onClick={e => e.stopPropagation()}>
                 <img
                     src={imageData}
-                    alt={alt || 'Preview'}
+                    alt={alt || t.preview}
                     className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
                 />
 

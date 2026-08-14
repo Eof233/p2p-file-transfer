@@ -106,4 +106,29 @@ describe('FileReducer', () => {
         const reset = FileReducer(state, { type: FileActionType.FILE_RESET })
         expect(reset).toEqual(initialState)
     })
+
+    it('pause, interrupt and resume update the transfer flags', () => {
+        const state = FileReducer(initialState, startTransfer())
+
+        const paused = FileReducer(state, { type: FileActionType.FILE_TRANSFER_PAUSE, id: 't1' })
+        expect(paused.transfers.t1.paused).toBe(true)
+
+        const interrupted = FileReducer(paused, { type: FileActionType.FILE_TRANSFER_INTERRUPT, id: 't1' })
+        expect(interrupted.transfers.t1.interrupted).toBe(true)
+
+        const resumed = FileReducer(interrupted, { type: FileActionType.FILE_TRANSFER_RESUME, id: 't1' })
+        expect(resumed.transfers.t1.paused).toBe(false)
+        expect(resumed.transfers.t1.interrupted).toBe(false)
+    })
+
+    it('pause/resume/interrupt are no-ops for unknown transfers', () => {
+        const paused = FileReducer(initialState, { type: FileActionType.FILE_TRANSFER_PAUSE, id: 'ghost' })
+        expect(paused).toEqual(initialState)
+
+        const interrupted = FileReducer(initialState, { type: FileActionType.FILE_TRANSFER_INTERRUPT, id: 'ghost' })
+        expect(interrupted).toEqual(initialState)
+
+        const resumed = FileReducer(initialState, { type: FileActionType.FILE_TRANSFER_RESUME, id: 'ghost' })
+        expect(resumed).toEqual(initialState)
+    })
 })

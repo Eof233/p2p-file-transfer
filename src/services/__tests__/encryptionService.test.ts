@@ -76,4 +76,64 @@ describe('EncryptionManager', () => {
         expect(encryptionManager.hasSessionKey('peerA')).toBe(false)
         expect(encryptionManager.hasSessionKey('peerB')).toBe(true)
     })
+
+    describe('ECDH session keys (perfect forward secrecy)', () => {
+        it('derives the same session key on both sides without a wire key', async () => {
+            // Each side creates its own ephemeral pair and installs the other
+            // side's public half — exactly what the handshake does.
+            const ephA = await encryptionManager.createEphemeralKeyPair('ecdhA')
+            const ephB = await encryptionManager.createEphemeralKeyPair('ecdhB')
+            expect(encryptionManager.getEphemeralPublicKeyBase64('ecdhA')).toBe(ephA)
+
+            const fp = encryptionManager.getFingerprint()
+            await encryptionManager.installSessionKeyFromEcdh('ecdhA', ephB, fp)
+            await encryptionManager.installSessionKeyFromEcdh('ecdhB', ephA, fp)
+
+            expect(encryptionManager.hasSessionKey('ecdhA')).toBe(true)
+            expect(encryptionManager.hasSessionKey('ecdhB')).toBe(true)
+            expect(encryptionManager.getRemoteFingerprint('ecdhA')).toBe(fp)
+
+            // Encrypt on A, decrypt on B: the derived keys must match.
+            const plain = 'pfs over ecdh'
+            const enc = await encryptionManager.encryptString('ecdhA', plain)
+            expect(await encryptionManager.decryptString('ecdhB', enc)).toBe(plain)
+        })
+
+        it('rejects messages when the ephemeral public keys do not match', async () => {
+            await encryptionManager.createEphemeralKeyPair('mismatchA')
+            const ephB = await encryptionManager.createEphemeralKeyPair('mismatchB')
+            const ephC = await encryptionManager.createEphemeralKeyPair('mismatchC')
+            const fp = encryptionManager.getFingerprint()
+
+            await encryptionManager.installSessionKeyFromEcdh('mismatchA', ephB, fp)
+            // B installs with C's public key, so its derived key differs.
+            await encryptionManager.installSessionKeyFromEcdh('mismatchB', ephC, fp)
+
+            const enc = await encryptionManager.encryptString('mismatchA', 'secret')
+            await expect(encryptionManager.decryptString('mismatchB', enc)).rejects.toThrow()
+        })
+
+        it('throws when installing an ECDH session without an ephemeral pair', async () => {
+            await expect(
+                encryptionManager.installSessionKeyFromEcdh('ghostEcdh', 'AAAA', 'FP'),
+            ).rejects.toThrow(/No ephemeral key pair/)
+        })
+
+        it('discards ephemeral keys on disconnect and session stop', async () => {
+            await encryptionManager.createEphemeralKeyPair('cleanupPeer')
+            expect(encryptionManager.getEphemeralPublicKeyBase64('cleanupPeer')).toBeDefined()
+
+            // removeSession (called on connection close) drops both the
+            // session key and the ephemeral pair.
+            encryptionManager.removeSession('cleanupPeer')
+            expect(encryptionManager.getEphemeralPublicKeyBase64('cleanupPeer')).toBeUndefined()
+            expect(encryptionManager.hasSessionKey('cleanupPeer')).toBe(false)
+
+            // clearAllSessions (called on session stop) drops everything.
+            await encryptionManager.createEphemeralKeyPair('cleanupPeer2')
+            encryptionManager.clearAllSessions()
+            expect(encryptionManager.getEphemeralPublicKeyBase64('cleanupPeer2')).toBeUndefined()
+            expect(encryptionManager.hasSessionKey('cleanupPeer2')).toBe(false)
+        })
+    })
 })

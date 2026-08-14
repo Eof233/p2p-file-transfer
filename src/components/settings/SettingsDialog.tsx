@@ -5,6 +5,8 @@ import { SettingsActionType } from '../../store/settings/settingsTypes'
 import { useI18n } from '../../hooks/useI18n'
 import { useTheme } from '../../hooks/useTheme'
 import { Language } from '../../utils/i18n'
+import { STORAGE_KEYS } from '../../utils/constants'
+import { encryptedStorage } from '../../services/encryptedStorageService'
 import { LogViewer } from './LogViewer'
 
 interface SettingsDialogProps {
@@ -32,6 +34,21 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onOpenChan
             })
         }
         dispatch({ type: SettingsActionType.SETTINGS_NOTIFICATIONS_TOGGLE })
+    }
+
+    const handleEncryptLocalDataToggle = () => {
+        const nextEnabled = !settings.encryptLocalData
+        dispatch({ type: SettingsActionType.SETTINGS_ENCRYPT_LOCAL_DATA_TOGGLE })
+        // The setting itself stays plaintext so it can be read before the
+        // decryption key is initialized; only the protected data is encrypted.
+        try {
+            const stored = localStorage.getItem(STORAGE_KEYS.SETTINGS)
+            const parsed = stored ? JSON.parse(stored) : {}
+            parsed.encryptLocalData = nextEnabled
+            localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(parsed))
+        } catch {}
+        // Re-encode managed data (connection history, logs) in the new mode.
+        void encryptedStorage.setEnabled(nextEnabled)
     }
 
     // Note: <LogViewer> must render OUTSIDE <Dialog>: the Dialog content always
@@ -102,6 +119,22 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, onOpenChan
                         >
                             <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
                                 settings.encryptionEnabled ? 'translate-x-5' : 'translate-x-0'
+                            }`} />
+                        </button>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-[var(--bg-secondary)] rounded-lg mt-2">
+                        <div>
+                            <div className="text-sm font-medium text-[var(--text-primary)]">{t.encryptLocalData}</div>
+                            <div className="text-xs text-[var(--text-tertiary)] mt-0.5">{t.encryptLocalDataDesc}</div>
+                        </div>
+                        <button
+                            onClick={handleEncryptLocalDataToggle}
+                            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
+                                settings.encryptLocalData ? 'bg-[var(--success)]' : 'bg-[var(--bg-tertiary)]'
+                            }`}
+                        >
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                                settings.encryptLocalData ? 'translate-x-5' : 'translate-x-0'
                             }`} />
                         </button>
                     </div>

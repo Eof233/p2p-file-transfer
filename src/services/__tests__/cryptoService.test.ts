@@ -78,4 +78,63 @@ describe('CryptoService', () => {
         // A wrong private key must fail
         await expect(CryptoService.decryptSessionKey(encryptedKey, alice.privateKey)).rejects.toThrow()
     })
+
+    describe('ECDH P-256 (perfect forward secrecy)', () => {
+        it('generates ephemeral P-256 key pairs with deriveBits usage', async () => {
+            const pair = await CryptoService.generateEphemeralKeyPair()
+            expect(pair.publicKey.algorithm).toMatchObject({ name: 'ECDH', namedCurve: 'P-256' })
+            expect(pair.privateKey.algorithm).toMatchObject({ name: 'ECDH', namedCurve: 'P-256' })
+            expect(pair.privateKey.usages).toContain('deriveBits')
+        })
+
+        it('exports and imports raw ephemeral public keys (base64 round trip)', async () => {
+            const pair = await CryptoService.generateEphemeralKeyPair()
+            const exported = await CryptoService.exportEphemeralPublicKey(pair.publicKey)
+            expect(exported).toMatch(/^[A-Za-z0-9+/]+=*$/)
+            // P-256 raw public keys are 65 bytes (0x04 || X || Y)
+            expect(CryptoService.base64ToBuffer(exported).byteLength).toBe(65)
+
+            const imported = await CryptoService.importEphemeralPublicKey(exported)
+            expect(imported.algorithm.name).toBe('ECDH')
+        })
+
+        it('derives the same session key on both sides regardless of initiator', async () => {
+            const alice = await CryptoService.generateEphemeralKeyPair()
+            const bob = await CryptoService.generateEphemeralKeyPair()
+            const aliceFp = 'ALICE-LONG-TERM-FINGERPRINT'
+            const bobFp = 'BOB-LONG-TERM-FINGERPRINT'
+
+            // Alice (initiator) and Bob (responder) derive independently; the
+            // HKDF info is sorted so the key is identical on both sides.
+            const aliceKey = await CryptoService.deriveSharedSecret(
+                alice.privateKey, bob.publicKey, alice.publicKey, aliceFp, bobFp,
+            )
+            const bobKey = await CryptoService.deriveSharedSecret(
+                bob.privateKey, alice.publicKey, bob.publicKey, bobFp, aliceFp,
+            )
+            expect(aliceKey.algorithm.name).toBe('AES-GCM')
+
+            // Encrypt with Alice's key, decrypt with Bob's: they must match.
+            const encrypted = await CryptoService.encryptString('pfs secret', aliceKey)
+            expect(await CryptoService.decryptToString(encrypted, bobKey)).toBe('pfs secret')
+        })
+
+        it('derives different keys when the peer key does not match', async () => {
+            const alice = await CryptoService.generateEphemeralKeyPair()
+            const bob = await CryptoService.generateEphemeralKeyPair()
+            const mallory = await CryptoService.generateEphemeralKeyPair()
+            const fp = 'SHARED-FINGERPRINT'
+
+            const aliceBob = await CryptoService.deriveSharedSecret(
+                alice.privateKey, bob.publicKey, alice.publicKey, fp, fp,
+            )
+            const aliceMallory = await CryptoService.deriveSharedSecret(
+                alice.privateKey, mallory.publicKey, alice.publicKey, fp, fp,
+            )
+
+            // A message encrypted for Bob must not decrypt with Mallory's key.
+            const encrypted = await CryptoService.encryptString('only for bob', aliceBob)
+            await expect(CryptoService.decryptToString(encrypted, aliceMallory)).rejects.toThrow()
+        })
+    })
 })

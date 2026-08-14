@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-14
+
+### 🔐 Phase 4: Forward Secrecy & Resilience
+
+- **Perfect Forward Secrecy (ECDH)**: every connection derives its AES-256-GCM
+  session key from a per-connection ephemeral ECDH (P-256) key pair announced
+  in connection metadata (`ephemeralKey`), combined via ECDH + HKDF-SHA256.
+  RSA-2048 stays as the long-term identity for fingerprint verification, and
+  the legacy RSA-OAEP `KEY_EXCHANGE` path remains as a fallback for older
+  peers.
+- **Encrypted file control messages**: `FILE_ACCEPT` / `FILE_REJECT` /
+  `FILE_CANCEL` / `FILE_COMPLETE` / `FILE_MISSING` are now AES-256-GCM
+  encrypted when a session key exists, with legacy-plaintext fallback on
+  receive for older peers.
+- **Read receipt retry queue**: undelivered receipts queue per peer with
+  dedupe (`read` supersedes `delivered`), up to 3 retries with 1s/2s/4s
+  backoff, then dropped. New `src/store/chat/receiptQueue.ts`.
+- **Automatic data-channel reconnect**: a closed WebRTC DataConnection is
+  re-dialed with exponential backoff (1s → 30s, max 10 attempts), a fresh
+  ephemeral ECDH key per attempt and a duplicate-connection guard. The sidebar
+  shows a "Reconnecting..." state; toasts report success/failure. Reconnect
+  fails legitimately when the remote restarted its session (new Peer ID).
+- **Transfer pause/resume**: transfers can be paused and resumed from the UI;
+  a channel drop mid-transfer marks the transfer "interrupted", and it can be
+  resumed within the same session over the live connection using the existing
+  `FILE_MISSING` retransmission rounds. Cross-session resume is NOT supported.
+- **Markdown in messages**: dependency-free parser
+  (`src/components/chat/MarkdownContent.tsx`) renders bold, italic, inline
+  code and links, plus fenced code blocks with monospace styling, a copy
+  button and lightweight regex highlighting for js/ts/json/css/bash. No
+  `dangerouslySetInnerHTML`.
+- **Image gallery**: per-conversation gallery dialog
+  (`src/components/chat/ImageGallery.tsx`) opened from the chat header;
+  thumbnails open the existing full-size preview.
+- **Encrypted local storage**: when the new "Encrypt local data" setting is
+  enabled, connection history and persisted logs are AES-256-GCM encrypted
+  (`src/services/encryptedStorageService.ts`). The key is generated once and
+  stored in localStorage — protection against casual inspection only, no
+  passphrase. Legacy plaintext values still load after upgrade.
+- **Log Viewer**: new "Errors only" filter.
+- **Dead code removed**: `SecuritySettings` component,
+  `settingsActions.setTheme` / `saveSettings`; receiver-side message delivery
+  status is no longer stored or rendered.
+- **i18n**: new keys (en + zh) — `errorsFilter`, `reconnecting`, `reconnected`,
+  `reconnectFailed`, `connectionRestored`, `resume`, `pause`,
+  `transferInterrupted`, `resumeNotAvailable`, `gallery`, `noImages`,
+  `copyCode`, `encryptLocalData`, `encryptLocalDataDesc`.
+
+#### Files Changed (highlights)
+- [x] `src/store/chat/receiptQueue.ts` — per-peer receipt retry queue (new)
+- [x] `src/components/chat/MarkdownContent.tsx` — Markdown renderer (new)
+- [x] `src/components/chat/ImageGallery.tsx` — gallery dialog (new)
+- [x] `src/services/encryptedStorageService.ts` — encrypted localStorage (new)
+- [x] `src/services/{cryptoService,encryptionService}.ts` — ECDH P-256 + HKDF
+- [x] `src/store/connection/connectionActions.ts` — data-channel reconnect loop
+- [x] `src/helpers/peer.ts` — `ephemeralKey` metadata, channel-close hooks
+- [x] `src/hooks/useFileTransfer.ts` — pause/resume/interrupted recovery
+- [x] `src/store/file/*` — encrypted control messages, pause/interrupt state
+- [x] `src/components/settings/LogViewer.tsx` — errors-only filter
+- [x] `src/components/settings/SettingsDialog.tsx` — encrypt-local-data toggle
+- [x] Deletions: `SecuritySettings`, `settingsActions.setTheme`/`saveSettings`
+
+### Known Limitations
+
+- Cross-session transfer resume is not supported; interrupted transfers can
+  only resume while the same session (and a live connection) exists.
+- Encrypted local storage is casual-inspection protection only: the AES key is
+  stored in localStorage with the data it protects, and there is no passphrase.
+- Read-receipt retries are capped at 3 attempts, after which the receipt is
+  dropped.
+- Auto-reconnect cannot recover a remote that restarted its session (it now
+  has a new Peer ID).
+- No TURN server is configured; peers behind symmetric NATs may not connect.
+- Tauri is 1.x.
+
+---
+
 ## [1.2.0] - 2026-08-13
 
 ### 🛠️ Phase 3: Engineering Foundation
@@ -552,64 +629,87 @@ src/
 | **Connection** | Manual ID Input | ✅ Done | Sidebar connect form |
 | **Connection** | Connection List | ✅ Done | Sidebar with active indicator |
 | **Connection** | Connection Request | ✅ Done | Accept/Reject dialog |
-| **Connection** | Auto-Reconnect | ❌ TODO | P1 priority |
-| **Connection** | Connection History | ❌ TODO | P2 priority |
+| **Connection** | Auto-Reconnect | ✅ Done | Signaling + data channels (1s–30s backoff, 10 attempts); cannot recover a remote that restarted its session |
+| **Connection** | Connection History | ✅ Done | Persisted (optionally encrypted) in localStorage |
 | **Messaging** | Real-time Chat | ✅ Done | Via PeerJS data channel |
 | **Messaging** | Message History | ✅ Done | In-memory per session |
 | **Messaging** | Typing Indicator | ✅ Done | Animated dots |
-| **Messaging** | Message Status | ✅ Done | Sent/Delivered/Read |
+| **Messaging** | Message Status | ✅ Done | Sent/Delivered/Read; receipts retried with backoff |
 | **Messaging** | Emoji Support | ✅ Done | Native Unicode |
-| **Messaging** | Code Blocks | ❌ TODO | P2 priority |
-| **Messaging** | Markdown Support | ❌ TODO | P2 priority |
+| **Messaging** | Code Blocks | ✅ Done | Fenced blocks, copy button, lightweight highlighting |
+| **Messaging** | Markdown Support | ✅ Done | Bold/italic/inline code/links, dependency-free |
 | **File Transfer** | Send File | ✅ Done | Any file type |
 | **File Transfer** | Receive Confirmation | ✅ Done | >5MB threshold |
 | **File Transfer** | Progress Indicator | ✅ Done | Real-time progress |
-| **File Transfer** | Cancel Transfer | ✅ Done | UI implemented |
+| **File Transfer** | Cancel Transfer | ✅ Done | Cooperative cancel at chunk boundaries |
 | **File Transfer** | File Preview | ✅ Done | Image/Video/Audio/PDF |
-| **File Transfer** | Drag & Drop | ❌ TODO | P1 priority |
-| **File Transfer** | Resume Transfer | ❌ TODO | P2 priority |
+| **File Transfer** | Drag & Drop | ✅ Done | Multi-file drop, auto-compression for images |
+| **File Transfer** | Resume Transfer | ✅ Done | Pause/resume + interrupted recovery, same-session only |
 | **Image** | Inline Display | ✅ Done | Base64 rendering |
 | **Image** | Image Preview | ✅ Done | Click to expand |
 | **Image** | Image Compression | ✅ Done | Service implemented |
-| **Image** | Image Gallery | ❌ TODO | P2 priority |
+| **Image** | Image Gallery | ✅ Done | Per-conversation dialog from chat header |
 | **Image** | Screenshot Paste | ✅ Done | Ctrl+V paste with feedback |
 | **Security** | AES-256 Encryption | ✅ Done | AES-256-GCM |
-| **Security** | RSA Key Exchange | ✅ Done | RSA-2048 OAEP |
-| **Security** | Perfect Forward Secrecy | ❌ TODO | P1 priority |
+| **Security** | RSA Key Exchange | ✅ Done | RSA-2048 OAEP (long-term identity, legacy fallback) |
+| **Security** | Perfect Forward Secrecy | ✅ Done | Ephemeral ECDH P-256 + HKDF per connection |
 | **Security** | Key Verification | ✅ Done | Fingerprint comparison dialog |
-| **Security** | Encrypted Local Storage | ❌ TODO | P2 priority |
+| **Security** | Encrypted Local Storage | ✅ Done | Optional AES-256-GCM at rest (casual-inspection only) |
 | **UI** | Theme Switching | ✅ Done | Light/Dark/System |
 | **UI** | Language Switching | ✅ Done | Chinese/English |
 | **UI** | Animations | ✅ Done | Apple-style springs |
 | **UI** | Reduced Motion | ✅ Done | prefers-reduced-motion |
 
+### Remaining Work
+
+- Configure a TURN server for symmetric-NAT traversal.
+- Tauri 2.x, including system tray and auto-updater.
+- Passphrase-protected local storage (real at-rest encryption, not just
+  casual-inspection obfuscation).
+- Cross-session transfer resume (persist sender/receiver state across app
+  restarts and new Peer IDs).
+- PRD v2.0 roadmap: group chat, voice/video calls, screen sharing, mobile app,
+  plugin system, self-hosted signaling server, message threading, file
+  versioning, cloud storage integration.
+
 ### Test Status
 
-| Component | Unit Tests | Integration Tests | E2E Tests |
-|-----------|------------|-------------------|-----------|
-| CryptoService | ❌ Not started | ❌ Not started | ❌ Not started |
-| FileService | ❌ Not started | ❌ Not started | ❌ Not started |
-| Chat System | ❌ Not started | ❌ Not started | ❌ Not started |
-| File Transfer | ❌ Not started | ❌ Not started | ❌ Not started |
-| UI Components | ❌ Not started | ❌ Not started | ❌ Not started |
+82 unit tests across 10 suites (Vitest, Node env; CI runs lint + tests before
+every build):
+
+| Suite | Tests |
+|-------|-------|
+| `src/services/__tests__/cryptoService.test.ts` | 11 |
+| `src/services/__tests__/encryptionService.test.ts` | 11 |
+| `src/services/__tests__/fileService.test.ts` | 9 |
+| `src/store/chat/__tests__/chatReducer.test.ts` | 5 |
+| `src/store/chat/__tests__/receiptQueue.test.ts` | 7 |
+| `src/store/file/__tests__/fileControlMessage.test.ts` | 8 |
+| `src/store/file/__tests__/fileReducer.test.ts` | 9 |
+| `src/store/file/__tests__/transferCoordinator.test.ts` | 12 |
+| `src/utils/__tests__/formatters.test.ts` | 6 |
+| `src/utils/__tests__/validators.test.ts` | 4 |
+| **Total** | **82** |
+
+Coverage: crypto primitives (RSA/AES round trips, tamper rejection, P-256
+ECDH + HKDF, key exchange), EncryptionManager, file
+chunking/reassembly/validation, transfer coordinator (accept/end waiters,
+timeouts, cleanup, pause/interrupt state), encrypted FILE_* control messages,
+receipt retry queue, chat/file reducers, formatters and validators.
 
 ### Known Issues
 
-1. **Reconnection**: No automatic reconnection on network interruption
-2. **Large Files**: Chunked transfer implemented but resume capability missing
-3. **Testing**: No unit or integration tests yet
-
-### Next Steps (v1.1.0)
-
-- [ ] Implement auto-reconnect logic
-- [ ] Add drag & drop file upload
-- [ ] Write unit tests for crypto service
-- [ ] Add E2E tests for file transfer
-- [ ] Implement connection history (localStorage)
-- [ ] Add markdown rendering in messages
-- [ ] Add code syntax highlighting
+1. **Reconnect vs. restarted sessions**: auto-reconnect gives up when the
+   remote restarted its session and has a new Peer ID.
+2. **Resume scope**: pause/resume and interrupted-transfer recovery work only
+   within the same session; cross-session resume is not supported.
+3. **Encrypted local storage** is casual-inspection protection only (key
+   stored locally, no passphrase).
+4. **Read receipts** are dropped after 3 failed retries.
+5. **TURN**: no TURN server configured; symmetric-NAT peers may not connect.
+6. **Tauri 1.x**: no system tray or auto-updater (PRD targets 2.x).
 
 ---
 
-*Last Updated: 2026-08-10*
-*Document Version: 1.0.0*
+*Last Updated: 2026-08-14*
+*Document Version: 1.3.0*

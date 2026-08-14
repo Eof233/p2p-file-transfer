@@ -3,6 +3,7 @@ import {Dispatch} from "redux";
 import {DataType, PeerConnection} from "../../helpers/peer";
 import {encryptionManager} from "../../services/encryptionService";
 import {createLogger} from "../../services/logService";
+import {enqueueReceipt} from "./receiptQueue";
 
 const log = createLogger('ChatActions')
 
@@ -100,17 +101,15 @@ export const sendTyping:
 /**
  * Tell the sender a message was delivered/read. Both statuses use the same
  * encrypted OTHER channel; the sender patches the chat message on receipt.
+ * Delivery goes through the per-peer retry queue (receiptQueue), so a
+ * momentary send failure no longer loses the receipt.
  */
 export const sendReceipt:
     (peerId: string, messageId: string, status: 'delivered' | 'read') =>
         (dispatch: Dispatch, getState: () => any) => Promise<void>
     = (peerId, messageId, status) => (async (_dispatch, getState) => {
     const data = await buildChatPayload(peerId, {dataType: 'RECEIPT', messageId, status}, getState().settings.encryptionEnabled)
-    try {
-        await PeerConnection.sendConnection(peerId, data)
-    } catch (err) {
-        log.debug('Failed to send receipt to peer: ' + peerId, err)
-    }
+    enqueueReceipt(peerId, messageId, status, data)
 })
 
 /**

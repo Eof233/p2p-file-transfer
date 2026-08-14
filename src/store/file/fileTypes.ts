@@ -5,6 +5,9 @@ export enum FileActionType {
     FILE_TRANSFER_CANCEL = 'FILE_TRANSFER_CANCEL',
     FILE_TRANSFER_ERROR = 'FILE_TRANSFER_ERROR',
     FILE_TRANSFER_ACCEPT = 'FILE_TRANSFER_ACCEPT',
+    FILE_TRANSFER_PAUSE = 'FILE_TRANSFER_PAUSE',
+    FILE_TRANSFER_RESUME = 'FILE_TRANSFER_RESUME',
+    FILE_TRANSFER_INTERRUPT = 'FILE_TRANSFER_INTERRUPT',
     FILE_PENDING_ADD = 'FILE_PENDING_ADD',
     FILE_PENDING_REMOVE = 'FILE_PENDING_REMOVE',
     FILE_RESET = 'FILE_RESET',
@@ -22,6 +25,10 @@ export interface FileTransfer {
     readonly speed?: number  // bytes per second
     readonly error?: string
     readonly blob?: Blob  // received file blob for download
+    /** Sender paused the transfer between chunks (status stays 'transferring'). */
+    readonly paused?: boolean
+    /** Data channel dropped mid-transfer; the transfer can be resumed this session. */
+    readonly interrupted?: boolean
 }
 
 export interface PendingFile {

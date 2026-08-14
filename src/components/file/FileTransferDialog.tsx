@@ -16,13 +16,24 @@ interface FileTransferDialogProps {
     onAccept?: () => void
     onReject?: () => void
     onConfirm?: () => void
+    // Transfer lifecycle controls (pause / resume / cancel) for an in-flight
+    // send transfer. When any of the callbacks is provided the footer switches
+    // from the accept/reject (or send-confirm) buttons to the transfer controls.
+    paused?: boolean
+    interrupted?: boolean
+    onPause?: () => void
+    onResume?: () => void
+    onCancelTransfer?: () => void
 }
 
 export const FileTransferDialog: React.FC<FileTransferDialogProps> = ({
-    open, onOpenChange, fileName, fileSize, fileType, peerId, direction, onAccept, onReject, onConfirm
+    open, onOpenChange, fileName, fileSize, fileType, peerId, direction,
+    onAccept, onReject, onConfirm,
+    paused, interrupted, onPause, onResume, onCancelTransfer,
 }) => {
     const { t } = useI18n()
     const isLargeFile = fileSize > LARGE_FILE_THRESHOLD
+    const showTransferControls = direction === 'send' && !!(onPause || onResume || onCancelTransfer)
 
     const getFileIcon = () => {
         if (fileType.startsWith('image/')) {
@@ -74,8 +85,39 @@ export const FileTransferDialog: React.FC<FileTransferDialogProps> = ({
                     </div>
                 )}
 
+                {interrupted && (
+                    <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-[var(--warning)]/10 rounded-lg">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" strokeWidth="2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        <span className="text-xs text-[var(--warning)]">
+                            {t.transferInterrupted}
+                        </span>
+                    </div>
+                )}
+
                 <div className="flex gap-3 mt-6 w-full">
-                    {direction === 'receive' ? (
+                    {showTransferControls ? (
+                        <>
+                            {onPause && !paused && !interrupted && (
+                                <Button variant="secondary" className="flex-1" onClick={onPause}>
+                                    {t.pause}
+                                </Button>
+                            )}
+                            {onResume && (paused || interrupted) && (
+                                <Button variant="primary" className="flex-1" onClick={onResume}>
+                                    {t.resume}
+                                </Button>
+                            )}
+                            {onCancelTransfer && (
+                                <Button variant="secondary" className="flex-1" onClick={onCancelTransfer}>
+                                    {t.cancel}
+                                </Button>
+                            )}
+                        </>
+                    ) : direction === 'receive' ? (
                         <>
                             <Button variant="secondary" className="flex-1" onClick={onReject}>
                                 {t.reject}

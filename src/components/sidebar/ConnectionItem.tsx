@@ -1,5 +1,6 @@
 import React from 'react'
 import { Avatar } from '../ui/Avatar'
+import { useI18n } from '../../hooks/useI18n'
 
 interface ConnectionItemProps {
     peerId: string
@@ -7,12 +8,14 @@ interface ConnectionItemProps {
     isOnline?: boolean
     lastMessage?: string
     unreadCount?: number
+    reconnecting?: boolean
     onClick: () => void
 }
 
 export const ConnectionItem: React.FC<ConnectionItemProps> = ({
-    peerId, isActive, isOnline = true, lastMessage, unreadCount, onClick
+    peerId, isActive, isOnline = true, lastMessage, unreadCount, reconnecting = false, onClick
 }) => {
+    const { t } = useI18n()
     return (
         <button
             onClick={onClick}
@@ -25,7 +28,7 @@ export const ConnectionItem: React.FC<ConnectionItemProps> = ({
             <Avatar
                 fallback={peerId}
                 size="md"
-                status={isOnline ? 'online' : 'offline'}
+                status={isOnline && !reconnecting ? 'online' : 'offline'}
             />
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
@@ -40,13 +43,19 @@ export const ConnectionItem: React.FC<ConnectionItemProps> = ({
                         </span>
                     )}
                 </div>
-                {lastMessage && (
+                {reconnecting ? (
+                    <p className={`text-xs truncate mt-0.5 ${
+                        isActive ? 'text-white/70' : 'text-[var(--warning)]'
+                    }`}>
+                        {t.reconnecting}
+                    </p>
+                ) : lastMessage ? (
                     <p className={`text-xs truncate mt-0.5 ${
                         isActive ? 'text-white/70' : 'text-[var(--text-tertiary)]'
                     }`}>
                         {lastMessage}
                     </p>
-                )}
+                ) : null}
             </div>
         </button>
     )

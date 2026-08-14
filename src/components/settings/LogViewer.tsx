@@ -13,6 +13,7 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
     const { t } = useI18n()
     const [levelFilter, setLevelFilter] = useState<LogLevel | null>(null)
     const [moduleFilter, setModuleFilter] = useState<string>('')
+    const [errorsOnly, setErrorsOnly] = useState(false)
 
     // Live view: re-snapshot when the viewer opens and subscribe to the log
     // service so new entries appear in real time without manual refresh.
@@ -25,6 +26,9 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
 
     const logs = useMemo(() => {
         let filtered = allLogs
+        if (errorsOnly) {
+            filtered = filtered.filter(log => log.level === LogLevel.ERROR || log.level === LogLevel.FATAL)
+        }
         if (levelFilter !== null) {
             filtered = filtered.filter(log => log.level === levelFilter)
         }
@@ -32,7 +36,7 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
             filtered = filtered.filter(log => log.module.includes(moduleFilter))
         }
         return filtered.reverse() // Newest first
-    }, [allLogs, levelFilter, moduleFilter])
+    }, [allLogs, errorsOnly, levelFilter, moduleFilter])
 
     const modules = useMemo(() => {
         const moduleSet = new Set(allLogs.map(log => log.module))
@@ -127,6 +131,14 @@ export const LogViewer: React.FC<LogViewerProps> = ({ open, onClose }) => {
                         <Button variant="ghost" size="sm" onClick={handleExportJSON}>JSON</Button>
                         <Button variant="ghost" size="sm" onClick={handleExportCSV}>CSV</Button>
                         <Button variant="ghost" size="sm" onClick={handleClear}>{t.clearLogs || 'Clear'}</Button>
+                        <Button
+                            variant={errorsOnly ? 'primary' : 'ghost'}
+                            size="sm"
+                            aria-pressed={errorsOnly}
+                            onClick={() => setErrorsOnly(!errorsOnly)}
+                        >
+                            {t.errorsFilter}
+                        </Button>
                         <button onClick={onClose} className="p-1 rounded hover:bg-[var(--bg-tertiary)]">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="18" y1="6" x2="6" y2="18" />

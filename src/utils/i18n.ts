@@ -75,6 +75,8 @@ export interface Translations {
     progress: string
     fileSent: string
     fileReceived: string
+    image: string
+    file: string
 
     // Key Verification
     verifyKeys: string
@@ -99,6 +101,28 @@ export interface Translations {
     entries: string
     noLogs: string
     all: string
+    errorsFilter: string
+
+    // Reconnect & Resume
+    reconnecting: string
+    reconnected: string
+    reconnectFailed: string
+    connectionRestored: string
+    resume: string
+    pause: string
+    transferInterrupted: string
+    resumeNotAvailable: string
+
+    // Gallery & Markdown
+    gallery: string
+    noImages: string
+    copyCode: string
+    sharedImage: string
+    preview: string
+
+    // Local Storage
+    encryptLocalData: string
+    encryptLocalDataDesc: string
 
     // Common
     copied: string
@@ -186,6 +210,8 @@ const en: Translations = {
     progress: 'Progress',
     fileSent: 'File sent',
     fileReceived: 'File received',
+    image: 'Image',
+    file: 'File',
 
     verifyKeys: 'Verify Keys',
     verifyKeysDesc: 'Compare these fingerprints with your peer to ensure secure connection',
@@ -207,6 +233,25 @@ const en: Translations = {
     entries: 'entries',
     noLogs: 'No logs',
     all: 'All',
+    errorsFilter: 'Errors only',
+
+    reconnecting: 'Reconnecting...',
+    reconnected: 'Reconnected',
+    reconnectFailed: 'Reconnect failed',
+    connectionRestored: 'Connection restored',
+    resume: 'Resume',
+    pause: 'Pause',
+    transferInterrupted: 'Transfer interrupted',
+    resumeNotAvailable: 'Unable to resume transfer',
+
+    gallery: 'Gallery',
+    noImages: 'No images shared yet',
+    copyCode: 'Copy code',
+    sharedImage: 'Shared image',
+    preview: 'Preview',
+
+    encryptLocalData: 'Encrypt local data',
+    encryptLocalDataDesc: 'Encrypt stored connection history and logs',
 
     copied: 'Copied',
     connectionClosed: 'Connection closed',
@@ -293,6 +338,8 @@ const zh: Translations = {
     progress: '进度',
     fileSent: '文件已发送',
     fileReceived: '文件已接收',
+    image: '图片',
+    file: '文件',
 
     verifyKeys: '验证密钥',
     verifyKeysDesc: '与对方比较这些指纹以确保安全连接',
@@ -314,6 +361,25 @@ const zh: Translations = {
     entries: '条记录',
     noLogs: '暂无日志',
     all: '全部',
+    errorsFilter: '仅错误',
+
+    reconnecting: '正在重连...',
+    reconnected: '已重新连接',
+    reconnectFailed: '重连失败',
+    connectionRestored: '连接已恢复',
+    resume: '继续',
+    pause: '暂停',
+    transferInterrupted: '传输中断',
+    resumeNotAvailable: '无法继续传输',
+
+    gallery: '图片画廊',
+    noImages: '暂无共享图片',
+    copyCode: '复制代码',
+    sharedImage: '共享图片',
+    preview: '预览',
+
+    encryptLocalData: '加密本地数据',
+    encryptLocalDataDesc: '加密本地存储的连接历史与日志',
 
     copied: '已复制',
     connectionClosed: '连接已关闭',

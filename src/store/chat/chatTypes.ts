@@ -12,7 +12,10 @@ export interface ChatMessage {
     readonly content: string
     readonly timestamp: number
     readonly type: 'text' | 'image' | 'file'
-    readonly status: 'sent' | 'delivered' | 'read'
+    // Delivery status is only meaningful for messages sent by the current
+    // user (patched by incoming receipts); received messages never display
+    // delivery marks.
+    readonly status?: 'sent' | 'delivered' | 'read'
     readonly fileName?: string
     readonly fileSize?: number
     readonly fileType?: string

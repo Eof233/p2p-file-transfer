@@ -1,7 +1,7 @@
 import { Dispatch } from "redux";
 import { ConnectionRequestActionType } from "./connectionRequestTypes";
 import { PeerConnection } from "../../helpers/peer";
-import { addConnectionList, rememberConnection } from "./connectionActions";
+import { addConnectionList, rememberConnection, cancelReconnect } from "./connectionActions";
 import { createLogger } from "../../services/logService";
 
 const log = createLogger('ConnectionRequestActions')
@@ -51,5 +51,7 @@ export const rejectConnection: (peerId: string) => (dispatch: Dispatch) => void
         log.info('Rejecting connection from peer: ' + peerId)
         dispatch(rejectConnectionRequest(peerId))
         PeerConnection.disconnectPeer(peerId)
+        // An explicit reject also stops any in-flight auto-reconnect for this peer.
+        cancelReconnect(peerId)
         dispatch(clearCompletedRequests())
     }

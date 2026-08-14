@@ -1,4 +1,7 @@
 import { createLogger } from '../../services/logService'
+import { DataType, Data, PeerConnection } from '../../helpers/peer'
+import { encryptionManager } from '../../services/encryptionService'
+import { FileChunk } from '../../services/fileService'
 
 const log = createLogger('TransferCoordinator')
 
@@ -41,6 +44,19 @@ export const isTransferCancelled = (transferId: string): boolean => cancelledTra
 
 export const markTransferCancelled = (transferId: string): void => {
     cancelledTransfers.add(transferId)
+}
+
+/** Transfer ids whose sending loop must hold between chunks (user paused). */
+const pausedTransfers: Set<string> = new Set()
+
+export const isTransferPaused = (transferId: string): boolean => pausedTransfers.has(transferId)
+
+export const markTransferPaused = (transferId: string): void => {
+    pausedTransfers.add(transferId)
+}
+
+export const unmarkTransferPaused = (transferId: string): void => {
+    pausedTransfers.delete(transferId)
 }
 
 /**
@@ -108,12 +124,159 @@ export const answerEndWaiter = (transferId: string, answer: EndAnswer): void => 
     }
 }
 
+// --- Sender-side transfer state (pause/resume + interrupted recovery) --------
+// The sender keeps its live chunk buffers and position outside Redux so an
+// interrupted transfer can be resumed in the same session from the next
+// unsent chunk index. Cleared together with the rest of the transfer state on
+// completion, cancellation or a permanent error.
+
+export interface SenderTransferState {
+    peerId: string
+    fileName: string
+    fileType: string
+    chunks: FileChunk[]
+    /** Chunk indexes still to send in the current pass (unsent tail or FILE_MISSING list). */
+    pendingIndexes: number[]
+    /** Chunk indexes already handed to the channel (drives progress accounting). */
+    sentIndexes: Set<number>
+    /** How many FILE_MISSING retransmission rounds happened so far. */
+    retransmitRounds: number
+    /** Whether chunks are encrypted on the wire (depends on the session key at start). */
+    useEncryption: boolean
+    /** Speed calculation baseline; reset when a transfer is resumed. */
+    startTime: number
+    bytesSent: number
+    /** True while the send loop is running (guards against concurrent resumes). */
+    active: boolean
+}
+
+const senderTransfers: Map<string, SenderTransferState> = new Map()
+
+export const getSenderTransferState = (transferId: string): SenderTransferState | undefined =>
+    senderTransfers.get(transferId)
+
+export const setSenderTransferState = (transferId: string, state: SenderTransferState): void => {
+    senderTransfers.set(transferId, state)
+}
+
+/**
+ * Raised when the data channel drops mid-transfer. Unlike a permanent error,
+ * the transfer stays resumable: the sender keeps its chunk state and the
+ * receiver keeps its buffer until the user resumes.
+ */
+export class TransferInterruptedError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = 'TransferInterruptedError'
+    }
+}
+
+/**
+ * Clean up the sender side of an interrupted transfer: drop waiters and the
+ * cancel flag, but KEEP the module-level sender state so a later resume can
+ * continue from the next unsent chunk index.
+ */
+export const interruptTransferState = (transferId: string): void => {
+    cancelledTransfers.delete(transferId)
+    const waiter = acceptWaiters.get(transferId)
+    if (waiter) {
+        clearTimeout(waiter.timeout)
+        acceptWaiters.delete(transferId)
+        waiter.reject(new Error('Transfer interrupted'))
+    }
+    const endWaiter = endWaiters.get(transferId)
+    if (endWaiter) {
+        clearTimeout(endWaiter.timeout)
+        endWaiters.delete(transferId)
+        endWaiter.reject(new Error('Transfer interrupted'))
+    }
+    log.debug('Transfer interrupted, sender state kept: ' + transferId)
+}
+
+// --- Encrypted FILE control messages ----------------------------------------
+// FILE_ACCEPT / FILE_REJECT / FILE_CANCEL / FILE_COMPLETE / FILE_MISSING carry
+// a JSON body that is AES-256-GCM encrypted like FILE_START metadata when a
+// session key exists and encryption is enabled. The envelope keeps the routing
+// fields (dataType/message/transferId) in plaintext; legacy peers send these
+// messages plaintext, so the receiver falls back to the envelope fields.
+
+const FILE_CONTROL_MESSAGES = ['FILE_ACCEPT', 'FILE_REJECT', 'FILE_CANCEL', 'FILE_COMPLETE', 'FILE_MISSING']
+
+/** True for FILE protocol messages whose JSON body is encrypted on the wire. */
+export const isFileControlMessage = (message: string): boolean => FILE_CONTROL_MESSAGES.includes(message)
+
+interface FileControlSendOptions {
+    /** The settings "encryption enabled" toggle; combined with a session key. */
+    encryptionEnabled: boolean
+    /** Extra fields to carry inside the message body (e.g. missingChunks). */
+    extra?: Record<string, unknown>
+}
+
+/**
+ * Send a FILE control message, encrypting the JSON body exactly like FILE_START
+ * metadata when a session key exists and encryption is enabled. Otherwise it is
+ * sent as legacy plaintext envelope fields.
+ */
+export const sendFileControlMessage = async (
+    peerId: string,
+    transferId: string,
+    message: string,
+    options?: FileControlSendOptions,
+): Promise<void> => {
+    const extra = options?.extra ?? {}
+    if (options?.encryptionEnabled && encryptionManager.hasSessionKey(peerId)) {
+        const encrypted = await encryptionManager.encryptString(peerId, JSON.stringify({ message, transferId, ...extra }))
+        await PeerConnection.sendConnection(peerId, {
+            dataType: DataType.FILE,
+            message,
+            transferId,
+            encrypted: true,
+            iv: encrypted.iv,
+            payload: encrypted.data,
+        })
+        return
+    }
+    await PeerConnection.sendConnection(peerId, {
+        dataType: DataType.FILE,
+        message,
+        transferId,
+        ...(extra as Partial<Data>),
+    })
+}
+
+/**
+ * Decrypt the JSON body of an encrypted FILE control message (mirror of the
+ * FILE_START decryption in the receive pipeline). Returns the parsed JSON, or
+ * null when the message is legacy plaintext (no `encrypted` flag) or cannot be
+ * decrypted — callers then fall back to the envelope fields.
+ */
+export const decryptFileControl = async (peerId: string, data: Data): Promise<Record<string, unknown> | null> => {
+    if (!data.encrypted) {
+        // Legacy peer: control messages travel as plaintext envelope fields
+        log.debug('Legacy plaintext FILE control message from peer: ' + peerId + ', message: ' + data.message)
+        return null
+    }
+    if (!data.iv || !data.payload) {
+        log.warn('Encrypted FILE control message missing iv/payload from peer: ' + peerId)
+        return null
+    }
+    try {
+        const plaintext = await encryptionManager.decryptString(peerId, { iv: data.iv, data: data.payload })
+        return JSON.parse(plaintext) as Record<string, unknown>
+    } catch (e) {
+        log.debug('Failed to decrypt FILE control message, falling back to plaintext from peer: ' + peerId, e)
+        return null
+    }
+}
+
 // --- Cleanup ----------------------------------------------------------------
 
 /** Remove every trace of a transfer (finished, rejected, or cancelled). */
 export const clearTransferState = (transferId: string): void => {
     pendingIncomingTransfers.delete(transferId)
     cancelledTransfers.delete(transferId)
+    pausedTransfers.delete(transferId)
+    senderTransfers.delete(transferId)
     const waiter = acceptWaiters.get(transferId)
     if (waiter) {
         clearTimeout(waiter.timeout)
@@ -143,5 +306,7 @@ export const clearAllTransferState = (): void => {
     endWaiters.clear()
     pendingIncomingTransfers.clear()
     cancelledTransfers.clear()
+    pausedTransfers.clear()
+    senderTransfers.clear()
     log.debug('All transfer state cleared')
 }

@@ -21,6 +21,9 @@ import {
     isTransferCancelled,
     markTransferCancelled,
     answerEndWaiter,
+    sendFileControlMessage,
+    decryptFileControl,
+    isFileControlMessage,
 } from "../file/transferCoordinator";
 import { encryptionManager } from "../../services/encryptionService";
 import { LARGE_FILE_THRESHOLD, TYPING_TIMEOUT } from "../../utils/constants";
@@ -80,6 +83,7 @@ const handleTyping = (peerId: string, typing: boolean, dispatch: Dispatch) => {
 interface PeerMetadata {
     publicKey?: string
     fingerprint?: string
+    ephemeralKey?: string
 }
 
 const handleKeyExchange = async (peerId: string, data: Data): Promise<void> => {
@@ -97,6 +101,43 @@ const handleKeyExchange = async (peerId: string, data: Data): Promise<void> => {
         return
     }
     await encryptionManager.receiveSessionKey(peerId, data.keyData, metadata.publicKey)
+}
+
+/**
+ * PFS (ECDH) handshake: the sender advertises its ephemeral public key and we
+ * derive the shared AES session key. We always reply with our own ephemeral
+ * public key so the sender can derive the same key. No session key ever
+ * travels over the wire. Runs inside the per-peer serial queue, so the
+ * derived key is installed before any subsequent encrypted message.
+ */
+const handleEphemeralKeyExchange = async (peerId: string, data: Data): Promise<void> => {
+    if (!data.ephemeralKey) {
+        log.warn('KEY_EXCHANGE message without ephemeralKey from peer: ' + peerId)
+        return
+    }
+    if (encryptionManager.hasSessionKey(peerId)) {
+        log.debug('Session key already present for peer: ' + peerId)
+        return
+    }
+    try {
+        // Use our existing ephemeral pair when we have one (both sides may
+        // have dialed during an auto-reconnect); otherwise create one now as
+        // the responder. Either way both sides derive the same key, because
+        // ECDH is symmetric.
+        const myEphemeralKey = encryptionManager.getEphemeralPublicKeyBase64(peerId)
+            ?? await encryptionManager.createEphemeralKeyPair(peerId)
+        await encryptionManager.installSessionKeyFromEcdh(peerId, data.ephemeralKey, data.fingerprint || '')
+        // Always reply: the sender needs our public half to derive, and in a
+        // both-sides reconnect its own announce may have been lost on the
+        // channel that was closed as a duplicate.
+        await PeerConnection.sendConnection(peerId, {
+            dataType: DataType.KEY_EXCHANGE,
+            ephemeralKey: myEphemeralKey,
+            fingerprint: encryptionManager.getFingerprint(),
+        })
+    } catch (err) {
+        log.error('ECDH session setup failed for peer: ' + peerId, err)
+    }
 }
 
 // --- Chat / typing (plaintext or encrypted) ---------------------------------
@@ -181,6 +222,19 @@ const handleChatOrTyping = async (peerId: string, data: Data, dispatch: Dispatch
 const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch): Promise<void> => {
     const { transferId, message: fileMessage } = data
 
+    // FILE control messages (FILE_ACCEPT/REJECT/CANCEL/COMPLETE/MISSING) may
+    // carry an encrypted JSON body, mirroring FILE_START metadata. Decrypt it
+    // up front and merge the fields over the envelope; legacy peers send these
+    // plaintext, in which case decryptFileControl returns null and the
+    // envelope fields are used as-is.
+    let effectiveData: Data = data
+    if (transferId && fileMessage && isFileControlMessage(fileMessage)) {
+        const body = await decryptFileControl(peerId, data)
+        if (body) {
+            effectiveData = { ...data, ...(body as Partial<Data>) }
+        }
+    }
+
     // Sender side: receiver answered our FILE_START
     if (fileMessage === 'FILE_ACCEPT' && transferId) {
         if (isTransferCancelled(transferId)) {
@@ -225,7 +279,7 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
 
     // Sender side: receiver asks for missing chunks
     if (fileMessage === 'FILE_MISSING' && transferId) {
-        const missingList = data.missingChunks
+        const missingList = effectiveData.missingChunks
         if (!missingList || missingList.length === 0) {
             log.warn('FILE_MISSING without chunk list from peer: ' + peerId)
             return
@@ -315,8 +369,9 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
             fileType: metadata.fileType,
             transferId,
         } as ChatMessage))
-        PeerConnection.sendConnection(peerId, { dataType: DataType.FILE, message: 'FILE_ACCEPT', transferId })
-            .catch((err) => log.error('Failed to send FILE_ACCEPT', err))
+        sendFileControlMessage(peerId, transferId, 'FILE_ACCEPT', {
+            encryptionEnabled: store.getState().settings.encryptionEnabled,
+        }).catch((err) => log.error('Failed to send FILE_ACCEPT', err))
         return
     }
 
@@ -389,11 +444,9 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
             }
             log.warn('Missing ' + missing.length + ' chunks for transfer ' + transferId
                 + ', retransmission round ' + entry.retransmitRounds)
-            PeerConnection.sendConnection(peerId, {
-                dataType: DataType.FILE,
-                message: 'FILE_MISSING',
-                transferId,
-                missingChunks: missing,
+            sendFileControlMessage(peerId, transferId, 'FILE_MISSING', {
+                encryptionEnabled: store.getState().settings.encryptionEnabled,
+                extra: { missingChunks: missing },
             }).catch((err) => log.error('Failed to send FILE_MISSING', err))
             return
         }
@@ -422,10 +475,8 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
         }
 
         // Acknowledge completion so the sender can finish its state machine
-        PeerConnection.sendConnection(peerId, {
-            dataType: DataType.FILE,
-            message: 'FILE_COMPLETE',
-            transferId,
+        sendFileControlMessage(peerId, transferId, 'FILE_COMPLETE', {
+            encryptionEnabled: store.getState().settings.encryptionEnabled,
         }).catch((err) => log.error('Failed to send FILE_COMPLETE', err))
 
         clearTransferState(transferId)
@@ -448,7 +499,13 @@ const processReceivedData = async (peerId: string, data: Data, dispatch: Dispatc
 
     switch (data.dataType) {
         case DataType.KEY_EXCHANGE:
-            await handleKeyExchange(peerId, data)
+            if (data.ephemeralKey) {
+                // PFS path: no session key travels — derive via ECDH.
+                await handleEphemeralKeyExchange(peerId, data)
+            } else {
+                // Legacy path (older clients without ephemeral keys).
+                await handleKeyExchange(peerId, data)
+            }
             return
         case DataType.OTHER:
             await handleChatOrTyping(peerId, data, dispatch)

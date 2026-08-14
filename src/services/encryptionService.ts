@@ -18,6 +18,12 @@ interface Session {
     verified: boolean
 }
 
+/** Per-connection ephemeral ECDH (P-256) key pair used for PFS. */
+interface EphemeralKeyPair {
+    pair: CryptoKeyPair
+    publicKeyBase64: string
+}
+
 type Listener = () => void
 
 /**
@@ -32,6 +38,7 @@ class EncryptionManager {
     private keyPair: { publicKey: CryptoKey; privateKey: CryptoKey } | null = null
     private fingerprint = ''
     private sessions = new Map<string, Session>()
+    private ephemeralKeys = new Map<string, EphemeralKeyPair>()
     private listeners = new Set<Listener>()
     private version = 0
     private initPromise: Promise<void> | null = null
@@ -116,6 +123,53 @@ class EncryptionManager {
         this.notify()
     }
 
+    // --- Perfect Forward Secrecy (ephemeral ECDH) ---
+    //
+    // The RSA key pair above stays as the long-term identity for fingerprint
+    // verification, but the session key is now derived per connection from
+    // ephemeral ECDH (P-256) key pairs instead of being wrapped in RSA. The
+    // private halves never leave this machine and are discarded on disconnect,
+    // so a compromised long-term RSA key cannot recover historical sessions.
+
+    /**
+     * Create a fresh ephemeral ECDH key pair for a connection and return the
+     * public half (base64 raw) to advertise to the peer.
+     */
+    async createEphemeralKeyPair(peerId: string): Promise<string> {
+        if (!this.keyPair) throw new Error('Encryption not initialized')
+        const pair = await CryptoService.generateEphemeralKeyPair()
+        const publicKeyBase64 = await CryptoService.exportEphemeralPublicKey(pair.publicKey)
+        this.ephemeralKeys.set(peerId, { pair, publicKeyBase64 })
+        log.info('Ephemeral ECDH key pair created for peer: ' + peerId)
+        return publicKeyBase64
+    }
+
+    getEphemeralPublicKeyBase64 = (peerId: string): string | undefined =>
+        this.ephemeralKeys.get(peerId)?.publicKeyBase64
+
+    /**
+     * Derive the AES-256-GCM session key from our ephemeral private key and
+     * the peer's ephemeral public key (ECDH + HKDF). Both sides call this with
+     * the same inputs, so they end up with the identical key — no session key
+     * ever travels over the wire.
+     */
+    async installSessionKeyFromEcdh(peerId: string, peerEphemeralPublicKeyBase64: string, peerFingerprint: string): Promise<void> {
+        if (!this.keyPair) throw new Error('Encryption not initialized')
+        const ephemeral = this.ephemeralKeys.get(peerId)
+        if (!ephemeral) throw new Error('No ephemeral key pair for peer: ' + peerId)
+        const peerEphemeralKey = await CryptoService.importEphemeralPublicKey(peerEphemeralPublicKeyBase64)
+        const sessionKey = await CryptoService.deriveSharedSecret(
+            ephemeral.pair.privateKey,
+            peerEphemeralKey,
+            ephemeral.pair.publicKey,
+            this.fingerprint,
+            peerFingerprint,
+        )
+        this.sessions.set(peerId, { sessionKey, remoteFingerprint: peerFingerprint, verified: false })
+        log.info('ECDH session key established with peer: ' + peerId)
+        this.notify()
+    }
+
     hasSessionKey = (peerId: string): boolean => this.sessions.has(peerId)
 
     getRemoteFingerprint = (peerId: string): string =>
@@ -131,10 +185,27 @@ class EncryptionManager {
 
     isVerified = (peerId: string): boolean => this.sessions.get(peerId)?.verified ?? false
 
-    /** Drop per-peer session material when the connection closes. */
+    /**
+     * Drop per-peer session material (and the ephemeral ECDH key pair) when
+     * the connection closes. Discarding the ephemeral private key is what
+     * gives the protocol forward secrecy.
+     */
     removeSession = (peerId: string): void => {
-        if (this.sessions.delete(peerId)) {
+        const hadSession = this.sessions.delete(peerId)
+        const hadEphemeral = this.ephemeralKeys.delete(peerId)
+        if (hadSession || hadEphemeral) {
             log.info('Session key discarded for peer: ' + peerId)
+            this.notify()
+        }
+    }
+
+    /** Drop ALL session and ephemeral-key material (session stop). */
+    clearAllSessions = (): void => {
+        const hadAny = this.sessions.size > 0 || this.ephemeralKeys.size > 0
+        this.sessions.clear()
+        this.ephemeralKeys.clear()
+        if (hadAny) {
+            log.info('Cleared all session keys and ephemeral key pairs')
             this.notify()
         }
     }

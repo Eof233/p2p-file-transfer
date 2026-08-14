@@ -1,7 +1,7 @@
-import { Reducer } from "redux";
-import { SettingsActionType, SettingsState, Language } from "./settingsTypes";
-import { getStoredLanguage } from "../../utils/i18n";
-import { MAX_FILE_SIZE_DEFAULT } from "../../utils/constants";
+import { Reducer } from 'redux'
+import { SettingsActionType, SettingsState, Language } from './settingsTypes'
+import { getStoredLanguage } from '../../utils/i18n'
+import { MAX_FILE_SIZE_DEFAULT } from '../../utils/constants'
 
 export const initialState: SettingsState = {
     theme: 'system',
@@ -9,6 +9,7 @@ export const initialState: SettingsState = {
     maxFileSize: MAX_FILE_SIZE_DEFAULT,
     notificationsEnabled: true,
     language: getStoredLanguage(),
+    encryptLocalData: false,
 }
 
 export const SettingsReducer: Reducer<SettingsState> = (state = initialState, action) => {
@@ -17,6 +18,8 @@ export const SettingsReducer: Reducer<SettingsState> = (state = initialState, ac
             return { ...state, theme: action.theme }
         case SettingsActionType.SETTINGS_ENCRYPTION_TOGGLE:
             return { ...state, encryptionEnabled: !state.encryptionEnabled }
+        case SettingsActionType.SETTINGS_ENCRYPT_LOCAL_DATA_TOGGLE:
+            return { ...state, encryptLocalData: !state.encryptLocalData }
         case SettingsActionType.SETTINGS_MAX_FILE_SIZE_SET:
             return { ...state, maxFileSize: action.maxFileSize }
         case SettingsActionType.SETTINGS_NOTIFICATIONS_TOGGLE:

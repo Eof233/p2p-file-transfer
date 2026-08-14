@@ -4,6 +4,7 @@ import { Button } from '../ui/Button'
 import { ConnectionItem } from './ConnectionItem'
 import { NewConnection } from './NewConnection'
 import { useI18n } from '../../hooks/useI18n'
+import { useAppSelector } from '../../store/hooks'
 
 interface SidebarProps {
     connections: string[]
@@ -23,6 +24,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
     const [showNewConnection, setShowNewConnection] = useState(false)
     const { t } = useI18n()
+    // Peers currently attempting an automatic data-channel reconnect.
+    const reconnectingIds = useAppSelector((state) => state.connection.reconnecting)
 
     const recentPeers = history.filter(id => !connections.includes(id)).slice(0, 5)
 
@@ -90,6 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 key={id}
                                 peerId={id}
                                 isActive={id === selectedId}
+                                reconnecting={reconnectingIds.includes(id)}
                                 onClick={() => onSelect(id)}
                             />
                         ))

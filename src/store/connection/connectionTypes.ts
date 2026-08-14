@@ -8,6 +8,9 @@ export enum ConnectionActionType {
     CONNECTION_RESET = 'CONNECTION_RESET',
     CONNECTION_HISTORY_ADD = 'CONNECTION_HISTORY_ADD',
     CONNECTION_HISTORY_LOAD = 'CONNECTION_HISTORY_LOAD',
+    CONNECTION_RECONNECTING = 'CONNECTION_RECONNECTING',
+    CONNECTION_RECONNECTED = 'CONNECTION_RECONNECTED',
+    CONNECTION_RECONNECT_FAILED = 'CONNECTION_RECONNECT_FAILED',
 }
 
 export interface ConnectionState {
@@ -18,4 +21,6 @@ export interface ConnectionState {
     readonly error?: string
     /** Recent peer IDs, most recent first (localStorage-backed). */
     readonly history: string[]
+    /** Peer IDs currently attempting an automatic data-channel reconnect. */
+    readonly reconnecting: string[]
 }

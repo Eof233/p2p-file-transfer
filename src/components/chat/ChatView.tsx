@@ -1,9 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { GalleryHorizontal } from 'lucide-react'
 import { ScrollArea } from '../ui/ScrollArea'
 import { MessageBubble } from './MessageBubble'
 import { MessageInput } from './MessageInput'
 import { TypingIndicator } from './TypingIndicator'
 import { ImagePreviewModal } from './ImagePreviewModal'
+import { ImageGallery } from './ImageGallery'
 import { KeyVerificationDialog } from '../security/KeyVerificationDialog'
 import { ConnectionInfo } from './ConnectionInfo'
 import { FileTransferDialog } from '../file/FileTransferDialog'
@@ -33,6 +35,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
     const { t } = useI18n()
     const [verifyDialogOpen, setVerifyDialogOpen] = useState(false)
     const [previewImage, setPreviewImage] = useState<string | null>(null)
+    const [galleryOpen, setGalleryOpen] = useState(false)
     const [dragActive, setDragActive] = useState(false)
     const dragDepthRef = useRef(0)
 
@@ -187,6 +190,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
                         </button>
                     )}
                     <button
+                        onClick={() => setGalleryOpen(true)}
+                        className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)]"
+                        title={t.gallery}
+                    >
+                        <GalleryHorizontal size={16} strokeWidth={2} />
+                    </button>
+                    <button
                         onClick={clearMessages}
                         className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)]"
                         title={t.clearChat}
@@ -263,6 +273,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ peerId, peerName }) => {
                 open={!!previewImage}
                 onClose={() => setPreviewImage(null)}
                 imageData={previewImage || ''}
+            />
+
+            {/* Image Gallery */}
+            <ImageGallery
+                open={galleryOpen}
+                onOpenChange={setGalleryOpen}
+                messages={messages}
             />
         </div>
     )

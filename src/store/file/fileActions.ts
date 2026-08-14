@@ -1,9 +1,9 @@
 import {FileActionType, FileTransfer} from "./fileTypes";
 import {Dispatch} from "redux";
-import {DataType, PeerConnection} from "../../helpers/peer";
 import {addChatMessage} from "../chat/chatActions";
 import {ChatMessage} from "../chat/chatTypes";
-import {pendingIncomingTransfers, clearTransferState} from "./transferCoordinator";
+import {pendingIncomingTransfers, clearTransferState, sendFileControlMessage} from "./transferCoordinator";
+import {store} from "../index";
 import {createLogger} from "../../services/logService";
 
 const log = createLogger('FileActions')
@@ -31,6 +31,21 @@ export const fileTransferError = (id: string, error: string) => ({
 /** Receiver accepted our FILE_START: switch from waiting to transferring. */
 export const fileTransferAccept = (id: string) => ({
     type: FileActionType.FILE_TRANSFER_ACCEPT, id
+})
+
+/** Sender paused the transfer between chunks. */
+export const fileTransferPause = (id: string) => ({
+    type: FileActionType.FILE_TRANSFER_PAUSE, id
+})
+
+/** Sender resumed a paused or interrupted transfer. */
+export const fileTransferResume = (id: string) => ({
+    type: FileActionType.FILE_TRANSFER_RESUME, id
+})
+
+/** The data channel dropped mid-transfer; the transfer stays resumable. */
+export const fileTransferInterrupt = (id: string) => ({
+    type: FileActionType.FILE_TRANSFER_INTERRUPT, id
 })
 
 export const filePendingAdd = (id: string, fileName: string, fileSize: number, fileType: string, peerId: string, blob?: Blob) => ({
@@ -85,10 +100,11 @@ export const acceptIncomingFile: (transferId: string) => (dispatch: Dispatch) =>
     } as ChatMessage))
 
     try {
-        await PeerConnection.sendConnection(entry.peerId, {
-            dataType: DataType.FILE,
-            message: 'FILE_ACCEPT',
-            transferId,
+        // Encrypted like every other FILE control message when a session key
+        // exists (the sender falls back to the plaintext envelope for legacy
+        // peers), consistent with the auto-accept path in receiveData.ts.
+        await sendFileControlMessage(entry.peerId, transferId, 'FILE_ACCEPT', {
+            encryptionEnabled: store.getState().settings.encryptionEnabled,
         })
     } catch (err) {
         log.error('Failed to send FILE_ACCEPT', err)
@@ -112,10 +128,11 @@ export const rejectIncomingFile: (transferId: string) => (dispatch: Dispatch) =>
     dispatch(filePendingRemove(transferId))
 
     try {
-        await PeerConnection.sendConnection(entry.peerId, {
-            dataType: DataType.FILE,
-            message: 'FILE_REJECT',
-            transferId,
+        // Encrypted like every other FILE control message when a session key
+        // exists (the sender falls back to the plaintext envelope for legacy
+        // peers), consistent with the auto-accept path in receiveData.ts.
+        await sendFileControlMessage(entry.peerId, transferId, 'FILE_REJECT', {
+            encryptionEnabled: store.getState().settings.encryptionEnabled,
         })
     } catch (err) {
         log.error('Failed to send FILE_REJECT', err)

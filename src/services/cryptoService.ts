@@ -12,6 +12,15 @@ export interface RSAKeyPair {
     privateKey: CryptoKey
 }
 
+/** Lexicographic byte comparison used to sort raw public keys for HKDF info. */
+const compareBytes = (a: Uint8Array, b: Uint8Array): number => {
+    const len = Math.min(a.byteLength, b.byteLength)
+    for (let i = 0; i < len; i++) {
+        if (a[i] !== b[i]) return a[i] - b[i]
+    }
+    return a.byteLength - b.byteLength
+}
+
 export const CryptoService = {
     // Encoding helpers
 
@@ -90,6 +99,117 @@ export const CryptoService = {
         return Array.from(hashBytes)
             .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
             .join(':')
+    },
+
+    // ECDH Key Management (ephemeral P-256, one pair per connection)
+    //
+    // Perfect Forward Secrecy: each connection gets a fresh ephemeral ECDH
+    // key pair. The public halves are exchanged over the wire; the private
+    // halves stay local and are discarded on disconnect. The AES session key
+    // is derived from the ECDH shared secret, so it never travels in a
+    // recoverable form — even a compromised long-term RSA key cannot recover
+    // historical session keys.
+
+    generateEphemeralKeyPair: async (): Promise<CryptoKeyPair> => {
+        log.debug('Generating ephemeral ECDH key pair')
+        return window.crypto.subtle.generateKey(
+            {
+                name: 'ECDH',
+                namedCurve: 'P-256',
+            },
+            true,
+            ['deriveBits']
+        )
+    },
+
+    exportEphemeralPublicKey: async (key: CryptoKey): Promise<string> => {
+        log.debug('Exporting ephemeral public key')
+        const raw = await window.crypto.subtle.exportKey('raw', key)
+        return CryptoService.bufferToBase64(raw)
+    },
+
+    importEphemeralPublicKey: async (keyData: string): Promise<CryptoKey> => {
+        log.debug('Importing ephemeral public key')
+        return window.crypto.subtle.importKey(
+            'raw',
+            CryptoService.base64ToBuffer(keyData),
+            {
+                name: 'ECDH',
+                namedCurve: 'P-256',
+            },
+            true,
+            []
+        )
+    },
+
+    /**
+     * Derive the AES-256-GCM session key from an ECDH shared secret via
+     * HKDF-SHA256. The HKDF info is domain-separated with both ephemeral
+     * public keys (sorted lexicographically) and both long-term fingerprints,
+     * so both sides derive the identical key regardless of who initiated.
+     */
+    deriveSharedSecret: async (
+        privateKey: CryptoKey,
+        peerPublicKey: CryptoKey,
+        localPublicKey: CryptoKey,
+        localFingerprint: string,
+        peerFingerprint: string,
+    ): Promise<CryptoKey> => {
+        log.debug('Deriving shared secret via ECDH + HKDF-SHA256')
+        const sharedBits = await window.crypto.subtle.deriveBits(
+            {
+                name: 'ECDH',
+                public: peerPublicKey,
+            },
+            privateKey,
+            256
+        )
+
+        // Domain separation: order-independent on both sides so the derived
+        // key is the same no matter which side initiated the connection.
+        const localRaw = new Uint8Array(await window.crypto.subtle.exportKey('raw', localPublicKey))
+        const peerRaw = new Uint8Array(await window.crypto.subtle.exportKey('raw', peerPublicKey))
+        const ephemeralKeys = [localRaw, peerRaw].sort(compareBytes)
+        const fingerprints = [localFingerprint, peerFingerprint].sort()
+
+        const encoder = new TextEncoder()
+        const infoParts: Uint8Array[] = [
+            ephemeralKeys[0],
+            ephemeralKeys[1],
+            encoder.encode(fingerprints[0]),
+            encoder.encode(fingerprints[1]),
+        ]
+        const info = new Uint8Array(infoParts.reduce((total, part) => total + part.byteLength, 0))
+        let offset = 0
+        for (const part of infoParts) {
+            info.set(part, offset)
+            offset += part.byteLength
+        }
+
+        // HKDF requires the shared secret to be wrapped in an HKDF CryptoKey.
+        const hkdfKey = await window.crypto.subtle.importKey(
+            'raw',
+            sharedBits,
+            { name: 'HKDF' },
+            false,
+            ['deriveKey']
+        )
+
+        return window.crypto.subtle.deriveKey(
+            {
+                name: 'HKDF',
+                hash: 'SHA-256',
+                salt: new Uint8Array(),
+                info,
+            },
+            hkdfKey,
+            {
+                name: 'AES-GCM',
+                length: 256,
+            },
+            true,
+            ['encrypt', 'decrypt']
+        )
     },
 
     // AES Session Key Management

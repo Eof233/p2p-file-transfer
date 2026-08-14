@@ -61,6 +61,42 @@ export const FileReducer: Reducer<FileState> = (state = initialState, action) =>
                 }
             }
         }
+        case FileActionType.FILE_TRANSFER_PAUSE: {
+            const {id} = action
+            const existing = state.transfers[id]
+            if (!existing) return state
+            return {
+                ...state,
+                transfers: {
+                    ...state.transfers,
+                    [id]: {...existing, paused: true}
+                }
+            }
+        }
+        case FileActionType.FILE_TRANSFER_RESUME: {
+            const {id} = action
+            const existing = state.transfers[id]
+            if (!existing) return state
+            return {
+                ...state,
+                transfers: {
+                    ...state.transfers,
+                    [id]: {...existing, paused: false, interrupted: false}
+                }
+            }
+        }
+        case FileActionType.FILE_TRANSFER_INTERRUPT: {
+            const {id} = action
+            const existing = state.transfers[id]
+            if (!existing) return state
+            return {
+                ...state,
+                transfers: {
+                    ...state.transfers,
+                    [id]: {...existing, interrupted: true}
+                }
+            }
+        }
         case FileActionType.FILE_TRANSFER_ERROR: {
             const {id, error} = action
             const existing = state.transfers[id]
