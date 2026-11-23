@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Both-sides race guard**: a duplicate data channel closed by the guard no
+  longer runs the disconnect cleanup of the surviving channel (the peer was
+  dropped from the list and its session/ephemeral keys were discarded, so the
+  kept channel could fall back to plaintext).
+- **Cancelling a transfer that waits for the receiver** (acceptance or
+  completion answer) now stops it right away and keeps it `cancelled`; it used
+  to flip to `error` / `interrupted` when the wait timed out.
+- **Cancelling an incoming transfer** now marks it cancelled on the receiver.
+- Final transfer states are sticky: a late cancel/error cannot overwrite
+  `completed`, and a late error/accept cannot overwrite `cancelled`.
+- Incoming chat messages are always attributed to the channel peer (a
+  peer-supplied `senderId` could render as a message from the local user);
+  a late `delivered` receipt no longer downgrades a `read` message.
+- `FILE_CHUNK` indexes outside the announced range are rejected.
+- `formatFileSize` no longer prints `undefined` for sub-byte or ≥ 1 TB values;
+  `formatDuration` no longer prints `60s` / `1m 60s`.
+
 ## [1.3.0] - 2026-08-14
 
 ### 🔐 Phase 4: Forward Secrecy & Resilience
@@ -674,22 +695,26 @@ src/
 
 ### Test Status
 
-82 unit tests across 10 suites (Vitest, Node env; CI runs lint + tests before
+103 unit tests across 14 files (Vitest, Node env; CI runs lint + tests before
 every build):
 
-| Suite | Tests |
-|-------|-------|
+| Test file | Tests |
+|-----------|-------|
+| `src/helpers/__tests__/peer.test.ts` | 3 |
+| `src/hooks/__tests__/useFileTransfer.test.ts` | 4 |
 | `src/services/__tests__/cryptoService.test.ts` | 11 |
 | `src/services/__tests__/encryptionService.test.ts` | 11 |
 | `src/services/__tests__/fileService.test.ts` | 9 |
 | `src/store/chat/__tests__/chatReducer.test.ts` | 5 |
 | `src/store/chat/__tests__/receiptQueue.test.ts` | 7 |
+| `src/store/connection/__tests__/receiveData.test.ts` | 6 |
 | `src/store/file/__tests__/fileControlMessage.test.ts` | 8 |
-| `src/store/file/__tests__/fileReducer.test.ts` | 9 |
-| `src/store/file/__tests__/transferCoordinator.test.ts` | 12 |
-| `src/utils/__tests__/formatters.test.ts` | 6 |
+| `src/store/file/__tests__/fileReducer.test.ts` | 11 |
+| `src/store/file/__tests__/transferCoordinator.test.ts` | 14 |
+| `src/store/peer/__tests__/peerActions.test.ts` | 2 |
+| `src/utils/__tests__/formatters.test.ts` | 8 |
 | `src/utils/__tests__/validators.test.ts` | 4 |
-| **Total** | **82** |
+| **Total** | **103** |
 
 Coverage: crypto primitives (RSA/AES round trips, tamper rejection, P-256
 ECDH + HKDF, key exchange), EncryptionManager, file

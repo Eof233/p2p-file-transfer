@@ -62,7 +62,12 @@ const suppressReconnect: Set<string> = new Set()
 let sessionStopping = false
 /** Which side created each connection, used by the both-sides race guard. */
 const connectionDirections: WeakMap<DataConnection, 'incoming' | 'outgoing'> = new WeakMap()
-/** Channels closed by the race guard; their close handlers must stay inert. */
+/**
+ * Channels closed by the race guard; their close handlers must stay inert.
+ * Entries are never removed: several close handlers observe the same channel
+ * and every one of them has to see the mark (the WeakSet frees it with the
+ * connection object).
+ */
 const guardClosedConnections: WeakSet<DataConnection> = new WeakSet()
 
 // Data handlers are registered asynchronously (after 'open'), but messages
@@ -102,7 +107,6 @@ const handleConnectionClosed = (conn: DataConnection, peerId: string): void => {
     // Channels closed by the race guard must not run cleanup or trigger a
     // reconnect (a surviving channel owns the peer state now).
     if (guardClosedConnections.has(conn)) {
-        guardClosedConnections.delete(conn)
         return
     }
     if (connectionMap.get(peerId) !== conn) {
@@ -518,6 +522,13 @@ export const PeerConnection = {
         connectionClosedCallback = callback
     },
 
+    /**
+     * True when `conn` was closed by the both-sides race guard, i.e. another
+     * live channel owns the peer. Close handlers must not clean up peer state
+     * for such a channel.
+     */
+    isRaceGuardClosed: (conn: DataConnection): boolean => guardClosedConnections.has(conn),
+
     onConnectionDisconnected: (id: string, callback: () => void) => {
         if (!connectionMap.has(id)) {
             return
@@ -530,7 +541,6 @@ export const PeerConnection = {
                 // own channel) must not run the disconnect callback: the
                 // surviving channel still owns the peer.
                 if (guardClosedConnections.has(conn)) {
-                    guardClosedConnections.delete(conn)
                     return
                 }
                 // Only remove the entry if it still refers to this channel

@@ -1,8 +1,10 @@
 export const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B'
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
     const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    // Clamp the unit: sub-byte values (slow transfer speeds) stay in B and
+    // anything beyond the largest unit is expressed in it.
+    const i = Math.min(Math.max(Math.floor(Math.log(bytes) / Math.log(k)), 0), sizes.length - 1)
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
@@ -12,9 +14,12 @@ export const formatSpeed = (bytesPerSecond: number): string => {
 
 export const formatDuration = (seconds: number): string => {
     if (seconds === Infinity) return '∞'
-    if (seconds < 60) return `${Math.ceil(seconds)}s`
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.ceil(seconds % 60)}s`
-    return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
+    // Round up once, before splitting into units, so a fractional value can
+    // never produce a 60s component ("60s", "1m 60s").
+    const total = Math.ceil(seconds)
+    if (total < 60) return `${total}s`
+    if (total < 3600) return `${Math.floor(total / 60)}m ${total % 60}s`
+    return `${Math.floor(total / 3600)}h ${Math.floor((total % 3600) / 60)}m`
 }
 
 export const formatTime = (timestamp: number): string => {

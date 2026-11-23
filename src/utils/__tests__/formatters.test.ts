@@ -18,6 +18,21 @@ describe('formatters', () => {
         expect(formatFileSize(3 * 1024 * 1024 * 1024)).toBe('3 GB')
     })
 
+    it('formatFileSize never falls off the unit table', () => {
+        expect(formatFileSize(0.5)).toBe('0.5 B')
+        expect(formatFileSize(2 * 1024 ** 4)).toBe('2 TB')
+        expect(formatFileSize(3 * 1024 ** 5)).toBe('3072 TB')
+        expect(formatFileSize(-1)).toBe('0 B')
+        expect(formatFileSize(NaN)).toBe('0 B')
+        expect(formatSpeed(0.5)).toBe('0.5 B/s')
+    })
+
+    it('formatDuration never shows a 60s component', () => {
+        expect(formatDuration(59.5)).toBe('1m 0s')
+        expect(formatDuration(119.2)).toBe('2m 0s')
+        expect(formatDuration(3599.5)).toBe('1h 0m')
+    })
+
     it('formatSpeed appends /s', () => {
         expect(formatSpeed(1024)).toBe('1 KB/s')
         expect(formatSpeed(0)).toBe('0 B/s')

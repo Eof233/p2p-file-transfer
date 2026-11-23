@@ -19,7 +19,7 @@ import {
     rejectAcceptWaiter,
     clearTransferState,
     isTransferCancelled,
-    markTransferCancelled,
+    cancelSenderTransfer,
     answerEndWaiter,
     sendFileControlMessage,
     decryptFileControl,
@@ -163,7 +163,9 @@ const handleChatOrTyping = async (peerId: string, data: Data, dispatch: Dispatch
     if (json.dataType === 'CHAT_MESSAGE') {
         const chatMessage: ChatMessage = {
             id: (json.id as string) || crypto.randomUUID(),
-            senderId: (json.senderId as string) || peerId,
+            // Always attribute the message to the channel it arrived on: a
+            // peer-supplied senderId could impersonate the local user.
+            senderId: peerId,
             content: (json.content as string) || '',
             timestamp: (json.timestamp as number) || Date.now(),
             type: (json.type as ChatMessage['type']) || 'text',
@@ -212,6 +214,11 @@ const handleChatOrTyping = async (peerId: string, data: Data, dispatch: Dispatch
         const messageId = json.messageId as string | undefined
         const status = json.status as 'delivered' | 'read' | undefined
         if (messageId && (status === 'delivered' || status === 'read')) {
+            // Receipts only ever move one of OUR messages forward: a late
+            // `delivered` must not downgrade a message that is already `read`.
+            const target = store.getState().chat.messages[peerId]?.find((m) => m.id === messageId)
+            if (!target || target.senderId === peerId) return
+            if (status === 'delivered' && target.status === 'read') return
             dispatch(updateChatMessage(peerId, messageId, { status }))
         }
     }
@@ -261,10 +268,16 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
 
     if (fileMessage === 'FILE_CANCEL' && transferId) {
         log.info('Transfer cancelled by peer: ' + peerId + ', transfer: ' + transferId)
-        // Mark before cleaning so a running send loop stops at its next
-        // chunk boundary (the loop's own error path does the full cleanup).
-        markTransferCancelled(transferId)
-        pendingIncomingTransfers.delete(transferId)
+        if (store.getState().file.transfers[transferId]?.direction === 'send') {
+            // We are the sender: flag the send loop so it stops at its next
+            // chunk boundary, or right away when it is waiting for an answer
+            // (the loop's own error path does the full cleanup).
+            cancelSenderTransfer(transferId)
+        } else {
+            // We are the receiver: there is no loop to consume a cancel flag,
+            // so drop the buffered chunks directly.
+            clearTransferState(transferId)
+        }
         dispatch(fileTransferCancel(transferId))
         dispatch(filePendingRemove(transferId))
         return
@@ -378,7 +391,11 @@ const handleFileMessage = async (peerId: string, data: Data, dispatch: Dispatch)
     if (fileMessage === 'FILE_CHUNK' && transferId) {
         const { chunkIndex, totalChunks } = data
 
-        if (chunkIndex === undefined || !totalChunks) {
+        if (
+            typeof chunkIndex !== 'number' || typeof totalChunks !== 'number'
+            || !Number.isInteger(chunkIndex) || !Number.isInteger(totalChunks)
+            || chunkIndex < 0 || chunkIndex >= totalChunks
+        ) {
             log.warn('Invalid FILE_CHUNK received from peer: ' + peerId)
             return
         }
