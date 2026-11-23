@@ -64,6 +64,12 @@ export const startPeer: () => (dispatch: Dispatch) => Promise<void>
 
                 // Clean up whenever the connection closes, accepted or not.
                 conn.on('close', () => {
+                    // A duplicate channel closed by the both-sides race guard
+                    // was replaced by a live one: the peer is still connected,
+                    // so its list entry and session keys must survive.
+                    if (PeerConnection.isRaceGuardClosed(conn)) {
+                        return
+                    }
                     dispatch(removeConnectionRequest(peerId))
                     dispatch(removeConnectionList(peerId))
                     encryptionManager.removeSession(peerId)

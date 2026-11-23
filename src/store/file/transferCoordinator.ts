@@ -193,6 +193,32 @@ export const interruptTransferState = (transferId: string): void => {
     log.debug('Transfer interrupted, sender state kept: ' + transferId)
 }
 
+/** Message of the error that classifies a send failure as a user cancel. */
+export const TRANSFER_CANCELLED_MESSAGE = 'Transfer cancelled'
+
+/**
+ * Cancel a transfer on the sending side: flag the send loop and wake any
+ * pending accept / end-answer waiter, so a sender that is still waiting for
+ * the receiver stops right away instead of running into its timeout (which
+ * would turn the cancelled transfer into an error or an interrupted one).
+ */
+export const cancelSenderTransfer = (transferId: string): void => {
+    cancelledTransfers.add(transferId)
+    const waiter = acceptWaiters.get(transferId)
+    if (waiter) {
+        clearTimeout(waiter.timeout)
+        acceptWaiters.delete(transferId)
+        waiter.reject(new Error(TRANSFER_CANCELLED_MESSAGE))
+    }
+    const endWaiter = endWaiters.get(transferId)
+    if (endWaiter) {
+        clearTimeout(endWaiter.timeout)
+        endWaiters.delete(transferId)
+        endWaiter.reject(new Error(TRANSFER_CANCELLED_MESSAGE))
+    }
+    log.debug('Sender transfer cancelled: ' + transferId)
+}
+
 // --- Encrypted FILE control messages ----------------------------------------
 // FILE_ACCEPT / FILE_REJECT / FILE_CANCEL / FILE_COMPLETE / FILE_MISSING carry
 // a JSON body that is AES-256-GCM encrypted like FILE_START metadata when a

@@ -82,6 +82,38 @@ describe('FileReducer', () => {
         expect(errored.transfers.t1.error).toBe('boom')
     })
 
+    it('keeps a completed transfer completed on a late cancel or error', () => {
+        const done = FileReducer(FileReducer(initialState, startTransfer()), {
+            type: FileActionType.FILE_TRANSFER_COMPLETE,
+            id: 't1',
+        })
+
+        const cancelled = FileReducer(done, { type: FileActionType.FILE_TRANSFER_CANCEL, id: 't1' })
+        expect(cancelled.transfers.t1.status).toBe('completed')
+
+        const errored = FileReducer(done, { type: FileActionType.FILE_TRANSFER_ERROR, id: 't1', error: 'boom' })
+        expect(errored.transfers.t1.status).toBe('completed')
+        expect(errored.transfers.t1.error).toBeUndefined()
+    })
+
+    it('keeps a cancelled transfer cancelled on a late error or accept', () => {
+        const cancelled = FileReducer(FileReducer(initialState, startTransfer()), {
+            type: FileActionType.FILE_TRANSFER_CANCEL,
+            id: 't1',
+        })
+
+        const errored = FileReducer(cancelled, {
+            type: FileActionType.FILE_TRANSFER_ERROR,
+            id: 't1',
+            error: 'Peer did not respond to the file request',
+        })
+        expect(errored.transfers.t1.status).toBe('cancelled')
+        expect(errored.transfers.t1.error).toBeUndefined()
+
+        const accepted = FileReducer(cancelled, { type: FileActionType.FILE_TRANSFER_ACCEPT, id: 't1' })
+        expect(accepted.transfers.t1.status).toBe('cancelled')
+    })
+
     it('adds and removes pending files', () => {
         const state = FileReducer(initialState, {
             type: FileActionType.FILE_PENDING_ADD,

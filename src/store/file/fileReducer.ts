@@ -41,6 +41,8 @@ export const FileReducer: Reducer<FileState> = (state = initialState, action) =>
             const {id} = action
             const existing = state.transfers[id]
             if (!existing) return state
+            // A late cancel must not hide a transfer that already finished.
+            if (existing.status === 'completed') return state
             return {
                 ...state,
                 transfers: {
@@ -53,6 +55,9 @@ export const FileReducer: Reducer<FileState> = (state = initialState, action) =>
             const {id} = action
             const existing = state.transfers[id]
             if (!existing) return state
+            // Only a transfer still waiting for the answer starts; a late
+            // FILE_ACCEPT must not revive a cancelled or failed transfer.
+            if (existing.status !== 'pending') return state
             return {
                 ...state,
                 transfers: {
@@ -101,6 +106,9 @@ export const FileReducer: Reducer<FileState> = (state = initialState, action) =>
             const {id, error} = action
             const existing = state.transfers[id]
             if (!existing) return state
+            // Completed and cancelled are final: a late failure (timeout,
+            // FILE_REJECT) must not overwrite them.
+            if (existing.status === 'completed' || existing.status === 'cancelled') return state
             return {
                 ...state,
                 transfers: {

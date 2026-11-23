@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Both-sides race guard**: a duplicate data channel closed by the guard no
+  longer runs the disconnect cleanup of the surviving channel (the peer was
+  dropped from the list and its session/ephemeral keys were discarded, so the
+  kept channel could fall back to plaintext).
+- **Cancelling a transfer that waits for the receiver** (acceptance or
+  completion answer) now stops it right away and keeps it `cancelled`; it used
+  to flip to `error` / `interrupted` when the wait timed out.
+- **Cancelling an incoming transfer** now marks it cancelled on the receiver.
+- Final transfer states are sticky: a late cancel/error cannot overwrite
+  `completed`, and a late error/accept cannot overwrite `cancelled`.
+- Incoming chat messages are always attributed to the channel peer (a
+  peer-supplied `senderId` could render as a message from the local user);
+  a late `delivered` receipt no longer downgrades a `read` message.
+- `FILE_CHUNK` indexes outside the announced range are rejected.
+- `formatFileSize` no longer prints `undefined` for sub-byte or ≥ 1 TB values;
+  `formatDuration` no longer prints `60s` / `1m 60s`.
+
 ## [1.3.0] - 2026-08-14
 
 ### 🔐 Phase 4: Forward Secrecy & Resilience

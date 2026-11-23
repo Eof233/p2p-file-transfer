@@ -16,7 +16,7 @@ import {
     rejectIncomingFile,
 } from '../store/file/fileActions'
 import {
-    markTransferCancelled,
+    cancelSenderTransfer,
     isTransferCancelled,
     markTransferPaused,
     isTransferPaused,
@@ -29,6 +29,7 @@ import {
     getSenderTransferState,
     sendFileControlMessage,
     TransferInterruptedError,
+    TRANSFER_CANCELLED_MESSAGE,
     EndAnswer,
 } from '../store/file/transferCoordinator'
 import { addChatMessage } from '../store/chat/chatActions'
@@ -86,14 +87,14 @@ const runTransferLoop = async (transferId: string, dispatch: AppDispatch): Promi
 
     const sendChunk = async (index: number): Promise<void> => {
         if (isTransferCancelled(transferId)) {
-            throw new Error('Transfer cancelled')
+            throw new Error(TRANSFER_CANCELLED_MESSAGE)
         }
 
         // Pause support: hold between chunks while the transfer is paused.
         // Cancel is still checked so a paused transfer can be aborted.
         while (isTransferPaused(transferId)) {
             if (isTransferCancelled(transferId)) {
-                throw new Error('Transfer cancelled')
+                throw new Error(TRANSFER_CANCELLED_MESSAGE)
             }
             await new Promise<void>((resolve) => setTimeout(resolve, 100))
         }
@@ -199,7 +200,7 @@ const runTransferLoop = async (transferId: string, dispatch: AppDispatch): Promi
  * once the data channel is back; other failures tell the receiver to clean up
  * via FILE_CANCEL.
  */
-const handleSendFailure = (
+export const handleSendFailure = (
     transferId: string,
     peerId: string,
     err: any,
@@ -208,7 +209,9 @@ const handleSendFailure = (
 ): void => {
     log.error('File transfer failed', err)
     const message = err?.message || 'Transfer failed'
-    if (message === 'Transfer cancelled') {
+    // The cancel flag wins over whatever error the loop surfaced: a waiter
+    // woken by the cancel is reported as an interruption by the send loop.
+    if (message === TRANSFER_CANCELLED_MESSAGE || isTransferCancelled(transferId)) {
         dispatch(fileTransferCancel(transferId))
         clearTransferState(transferId)
     } else if (err instanceof TransferInterruptedError) {
@@ -330,7 +333,7 @@ export const useFileTransfer = () => {
                 // 2. Wait for the receiver's FILE_ACCEPT (rejects on FILE_REJECT/timeout)
                 await waitForAcceptance(transferId, ACCEPT_TIMEOUT)
                 if (isTransferCancelled(transferId)) {
-                    throw new Error('Transfer cancelled')
+                    throw new Error(TRANSFER_CANCELLED_MESSAGE)
                 }
 
                 // 3. Register the sender-side transfer state so an interrupted
@@ -388,14 +391,16 @@ export const useFileTransfer = () => {
             if (transfer?.direction === 'receive') {
                 // Stop receiving and tell the sender to abort
                 clearTransferState(transferId)
+                dispatch(fileTransferCancel(transferId))
                 dispatch(filePendingRemove(transferId))
                 if (peerId) {
                     sendFileControlMessage(peerId, transferId, 'FILE_CANCEL', { encryptionEnabled })
                         .catch(() => {})
                 }
             } else {
-                // Flag the sending loop; it stops at the next chunk boundary
-                markTransferCancelled(transferId)
+                // Flag the sending loop (it stops at the next chunk boundary)
+                // and wake it if it is waiting for the receiver's answer.
+                cancelSenderTransfer(transferId)
                 dispatch(fileTransferCancel(transferId))
                 if (peerId) {
                     sendFileControlMessage(peerId, transferId, 'FILE_CANCEL', { encryptionEnabled })

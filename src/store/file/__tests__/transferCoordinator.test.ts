@@ -15,6 +15,7 @@ import {
     setSenderTransferState,
     getSenderTransferState,
     interruptTransferState,
+    cancelSenderTransfer,
     SenderTransferState,
     pendingIncomingTransfers,
 } from '../transferCoordinator'
@@ -126,6 +127,26 @@ describe('transferCoordinator', () => {
         await expect(end).rejects.toThrow('Transfer interrupted')
 
         clearTransferState('p3')
+    })
+
+    it('cancelSenderTransfer flags the transfer and wakes a pending acceptance waiter', async () => {
+        const accept = waitForAcceptance('c1', 1000)
+
+        cancelSenderTransfer('c1')
+        expect(isTransferCancelled('c1')).toBe(true)
+        await expect(accept).rejects.toThrow('Transfer cancelled')
+
+        clearTransferState('c1')
+    })
+
+    it('cancelSenderTransfer wakes a pending end-answer waiter', async () => {
+        const end = waitForEndAnswer('c2', 1000)
+
+        cancelSenderTransfer('c2')
+        expect(isTransferCancelled('c2')).toBe(true)
+        await expect(end).rejects.toThrow('Transfer cancelled')
+
+        clearTransferState('c2')
     })
 
     it('clearAllTransferState clears sender state and pause flags', () => {
