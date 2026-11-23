@@ -695,22 +695,26 @@ src/
 
 ### Test Status
 
-82 unit tests across 10 suites (Vitest, Node env; CI runs lint + tests before
+103 unit tests across 14 files (Vitest, Node env; CI runs lint + tests before
 every build):
 
-| Suite | Tests |
-|-------|-------|
+| Test file | Tests |
+|-----------|-------|
+| `src/helpers/__tests__/peer.test.ts` | 3 |
+| `src/hooks/__tests__/useFileTransfer.test.ts` | 4 |
 | `src/services/__tests__/cryptoService.test.ts` | 11 |
 | `src/services/__tests__/encryptionService.test.ts` | 11 |
 | `src/services/__tests__/fileService.test.ts` | 9 |
 | `src/store/chat/__tests__/chatReducer.test.ts` | 5 |
 | `src/store/chat/__tests__/receiptQueue.test.ts` | 7 |
+| `src/store/connection/__tests__/receiveData.test.ts` | 6 |
 | `src/store/file/__tests__/fileControlMessage.test.ts` | 8 |
-| `src/store/file/__tests__/fileReducer.test.ts` | 9 |
-| `src/store/file/__tests__/transferCoordinator.test.ts` | 12 |
-| `src/utils/__tests__/formatters.test.ts` | 6 |
+| `src/store/file/__tests__/fileReducer.test.ts` | 11 |
+| `src/store/file/__tests__/transferCoordinator.test.ts` | 14 |
+| `src/store/peer/__tests__/peerActions.test.ts` | 2 |
+| `src/utils/__tests__/formatters.test.ts` | 8 |
 | `src/utils/__tests__/validators.test.ts` | 4 |
-| **Total** | **82** |
+| **Total** | **103** |
 
 Coverage: crypto primitives (RSA/AES round trips, tamper rejection, P-256
 ECDH + HKDF, key exchange), EncryptionManager, file

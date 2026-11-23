@@ -144,7 +144,7 @@ dialog opened from the chat header; thumbnails open the existing
 - **Radix UI + Tailwind**, no Ant Design. Theme tokens are CSS variables in
   `src/styles/globals.css`; i18n keys live in `src/utils/i18n.ts` (en/zh).
 - **No backend** — the only external dependency is PeerJS's signaling server.
-- No routing. Tests live in `__tests__/` dirs (101 tests across 13 suites); CI
+- No routing. Tests live in `__tests__/` dirs (103 tests across 14 files); CI
   runs lint+test before every build.
 
 ## Known Issues (as of 1.3.0)
